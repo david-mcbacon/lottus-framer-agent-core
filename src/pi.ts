@@ -6,6 +6,7 @@ import { createFramerCompletionExtension } from "./framer-completion.js";
 import { createFramerOperationsExtension } from "./framer-operations.js";
 import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
 import { createFramerVisualExtension, type FramerVisualAdapter } from "./framer-visual.js";
+import { createFramerPatternExtension, type FramerPatternAdapter } from "./framer-patterns.js";
 import {
   DESIGN_QUESTION_DETAILS_TYPE,
   askUserSchema,
@@ -74,6 +75,7 @@ export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions
   readonly executionAdapter?: FramerExecutionAdapter;
   readonly scratchAdapter?: FramerScratchFileAdapter;
   readonly visualAdapter?: FramerVisualAdapter;
+  readonly patternAdapter?: FramerPatternAdapter;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
   readonly capabilityProfile?: FramerModelCapabilityProfile;
   readonly liveContextProvider?: LiveFramerContextProvider;
@@ -95,6 +97,7 @@ export function createFramerAgentCoreExtension(
       ...(options.capabilityProfile ? { profile: options.capabilityProfile } : {}),
     })(pi);
     askUser?.(pi);
+    if (options.patternAdapter) createFramerPatternExtension(options.patternAdapter)(pi);
     if (!options.executionAdapter) return;
     const state = createFramerRunState();
     options.onSessionStateCreated?.(state);

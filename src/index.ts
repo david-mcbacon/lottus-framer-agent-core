@@ -69,6 +69,8 @@ export {
 export type { CodeFileRunState, CodeVerificationStatus, FramerRunState } from "./framer-run-state.js";
 export { createFramerVisualExtension } from "./framer-visual.js";
 export type { FramerVisualAdapter, FramerImage, GeometryDiagnostic, GeometryResult, StockImageCandidate } from "./framer-visual.js";
+export { MAX_PATTERN_OBSERVATIONS, MAX_PATTERN_REFERENCE_SCOPES, createFramerPatternExtension, extractObservedPatterns, findObservedPatternDeviations, patternKinds, renderObservedPatternGuidance } from "./framer-patterns.js";
+export type { FramerPatternAdapter, FramerPatternKind, FramerPatternReferenceScope, FramerPatternSample, FramerProjectStyle, ObservedPattern, ObservedPatternReport } from "./framer-patterns.js";
 export {
   FRAMER_GUIDANCE_AGENTS_MARKER,
   FRAMER_GUIDANCE_COMPILER_VERSION,
