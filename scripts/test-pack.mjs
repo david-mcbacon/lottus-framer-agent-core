@@ -26,7 +26,7 @@ try {
     import * as pi from "@lottus-agent/framer-core/pi";
     import * as testing from "@lottus-agent/framer-core/testing";
     const tools = testing.captureExtensionTools(pi.createFramerAgentCoreExtension({ createQuestionId: () => "packed" }));
-    if (!root.askUserSchema || !contracts.isDesignQuestionDetails || !tools.has("ask_user")) process.exit(1);
+    if (!root.askUserSchema || !root.createFramerCodeFilesExtension || !root.parseCodeFileEvidence || !contracts.isDesignQuestionDetails || !tools.has("ask_user")) process.exit(1);
   `;
   await exec(process.execPath, ["--input-type=module", "--eval", probe], { cwd: fixture });
   process.stdout.write(`Packed artifact verified in clean fixture: ${tarball}\n`);

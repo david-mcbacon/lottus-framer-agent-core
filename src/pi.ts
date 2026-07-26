@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createFramerCanvasExtension, type FramerExecutionAdapter } from "./framer-canvas.js";
-import type { FramerRunState } from "./framer-run-state.js";
+import { createFramerCodeFilesExtension, type FramerScratchFileAdapter } from "./framer-code-files.js";
+import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
 import {
   DESIGN_QUESTION_DETAILS_TYPE,
   askUserSchema,
@@ -67,6 +68,7 @@ export function createAskUserExtension(options: AskUserExtensionOptions = {}): E
 
 export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions {
   readonly executionAdapter?: FramerExecutionAdapter;
+  readonly scratchAdapter?: FramerScratchFileAdapter;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
 }
 
@@ -74,15 +76,18 @@ export function createFramerAgentCoreExtension(
   options: FramerAgentCoreExtensionOptions = {},
 ): ExtensionFactory {
   const askUser = createAskUserExtension(options);
-  const canvas = options.executionAdapter
-    ? createFramerCanvasExtension(options.executionAdapter, {
-        ...(options.onSessionStateCreated
-          ? { onSessionStateCreated: options.onSessionStateCreated }
-          : {}),
-      })
-    : undefined;
   return (pi) => {
     askUser(pi);
-    canvas?.(pi);
+    if (!options.executionAdapter) return;
+    const state = createFramerRunState();
+    options.onSessionStateCreated?.(state);
+    createFramerCanvasExtension(options.executionAdapter, { state })(pi);
+    if (options.scratchAdapter) {
+      createFramerCodeFilesExtension({
+        executionAdapter: options.executionAdapter,
+        scratchAdapter: options.scratchAdapter,
+        state,
+      })(pi);
+    }
   };
 }

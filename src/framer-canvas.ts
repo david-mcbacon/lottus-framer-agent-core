@@ -21,6 +21,7 @@ export interface FramerExecutionAdapter {
 }
 
 export interface FramerCanvasExtensionOptions {
+  readonly state?: FramerRunState;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
 }
 
@@ -47,7 +48,7 @@ export function createFramerCanvasExtension(
   options: FramerCanvasExtensionOptions = {},
 ): ExtensionFactory {
   return (pi: ExtensionAPI) => {
-    const state = createFramerRunState();
+    const state = options.state ?? createFramerRunState();
     options.onSessionStateCreated?.(state);
 
     pi.registerTool({

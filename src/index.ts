@@ -34,7 +34,21 @@ export type {
   CanvasEvidenceStatus,
   CanvasMutationEvidence,
 } from "./canvas-evidence.js";
-export { createFramerRunState } from "./framer-run-state.js";
-export type { FramerRunState } from "./framer-run-state.js";
+export {
+  FRAMER_CODE_FILE_DETAILS_TYPE,
+  MAX_CODE_FILE_SOURCE_BYTES,
+  createFramerCodeFilesExtension,
+  parseCodeFileEvidence,
+  validateCodeFileName,
+} from "./framer-code-files.js";
+export type {
+  CodeFileEvidence,
+  CodeFileResultDetails,
+  ExpectedExport,
+  FramerScratchFileAdapter,
+  NormalizedCodeExport,
+} from "./framer-code-files.js";
+export { createFramerRunState, recordCodeMutation, recordCodeVerification } from "./framer-run-state.js";
+export type { CodeFileRunState, CodeVerificationStatus, FramerRunState } from "./framer-run-state.js";
 export { createAskUserExtension, createFramerAgentCoreExtension } from "./pi.js";
 export type { AskUserExtensionOptions, FramerAgentCoreExtensionOptions } from "./pi.js";
