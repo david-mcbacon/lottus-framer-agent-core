@@ -24,9 +24,6 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
       parameters: finishFramerWorkSchema,
       executionMode: "sequential",
       async execute(_id, input: FinishFramerWorkInput) {
-        const incomplete = incompleteReviewReason(state);
-        if (incomplete) throw new Error(`Completion blocked: ${incomplete}.`);
-
         const reviewStatus = derivedReviewStatus(state);
         if (reviewStatus === "issues_remain" && input.unresolvedIssues.length === 0) {
           throw new Error("Completion with issues remaining must list concise user-facing unresolved issues.");
@@ -34,6 +31,8 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
         if (reviewStatus !== "issues_remain" && input.unresolvedIssues.length > 0) {
           throw new Error("Completion evidence is clean; do not report unresolved issues unless checks found issues.");
         }
+        const incomplete = incompleteReviewReason(state);
+        if (incomplete) throw new Error(`Completion blocked: ${incomplete}.`);
 
         const details: FramerCompletionDetails = {
           type: FRAMER_COMPLETION_DETAILS_TYPE,

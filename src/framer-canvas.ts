@@ -256,18 +256,21 @@ export function createFramerCanvasExtension(
       parameters: Type.Object({
         dsl: Type.String({ minLength: 1, maxLength: 200_000 }),
         pagePath: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+        visualRisk: Type.Optional(StringEnum(["routine", "recreation", "major-page", "major-breakpoint", "absolute-positioning", "fixed-positioning", "reference-comparison", "deterministic-insufficient"] as const)),
       }, { additionalProperties: false }),
       executionMode: "sequential",
       async execute(_id, input, signal, _update, ctx) {
         state.canvasMutationVersion += 1;
         state.canvasEvidenceStatus = "incomplete";
         state.canvasDiagnostics = [];
+        state.visualRequirement = input.visualRisk && input.visualRisk !== "routine" ? "screenshot" : "geometry";
         const source = `const result = await framer.agent.applyChanges(${JSON.stringify(input.dsl)}${input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : ""}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(result));`;
         const executed = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
         const evidence = parseCanvasMutationEvidence(extractStructuredResult(executed.rawOutput));
         state.canvasEvidenceVersion = state.canvasMutationVersion;
         state.canvasEvidenceStatus = evidence.status;
         state.canvasDiagnostics = [...evidence.diagnostics];
+        if (evidence.status !== "incomplete") state.geometryEvidenceVersion = state.canvasMutationVersion;
         const compact = serializeCanvasMutationEvidence(evidence);
         return {
           content: [{ type: "text" as const, text: compact }],

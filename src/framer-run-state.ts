@@ -17,6 +17,9 @@ export interface FramerRunState {
   canvasEvidenceVersion: number;
   canvasEvidenceStatus: CanvasEvidenceStatus;
   canvasDiagnostics: CanvasDiagnostic[];
+  visualRequirement: "geometry" | "screenshot";
+  geometryEvidenceVersion: number;
+  screenshotEvidenceVersion: number;
   codeFiles: Map<string, CodeFileRunState>;
   genericMutationVersion: number;
   genericEvidenceVersion: number;
@@ -32,6 +35,9 @@ export function createFramerRunState(): FramerRunState {
     canvasEvidenceVersion: 0,
     canvasEvidenceStatus: "incomplete",
     canvasDiagnostics: [],
+    visualRequirement: "geometry",
+    geometryEvidenceVersion: 0,
+    screenshotEvidenceVersion: 0,
     codeFiles: new Map(),
     genericMutationVersion: 0,
     genericEvidenceVersion: 0,
@@ -61,6 +67,15 @@ export function incompleteReviewReason(state: FramerRunState): string | undefine
     || (state.canvasMutationVersion > 0 && state.canvasEvidenceStatus === "incomplete")
   ) {
     return "obtain complete diagnostics for the latest canvas mutation with framer_apply_changes";
+  }
+
+  if (state.canvasMutationVersion > 0 && state.canvasEvidenceStatus !== "issues") {
+    if (state.visualRequirement === "screenshot" && state.screenshotEvidenceVersion < state.canvasMutationVersion) {
+      return "capture a project screenshot for the latest high-risk canvas mutation with framer_capture_screenshot";
+    }
+    if (state.visualRequirement === "geometry" && state.geometryEvidenceVersion < state.canvasMutationVersion) {
+      return "obtain bounded geometry diagnostics for the latest canvas mutation with framer_check_geometry";
+    }
   }
 
   if (state.genericMutationVersion > state.genericEvidenceVersion) {

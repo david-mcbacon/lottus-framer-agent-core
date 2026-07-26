@@ -4,6 +4,7 @@ import { createFramerCanvasExtension, type FramerExecutionAdapter } from "./fram
 import { createFramerCodeFilesExtension, type FramerScratchFileAdapter } from "./framer-code-files.js";
 import { createFramerCompletionExtension } from "./framer-completion.js";
 import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
+import { createFramerVisualExtension, type FramerVisualAdapter } from "./framer-visual.js";
 import {
   DESIGN_QUESTION_DETAILS_TYPE,
   askUserSchema,
@@ -70,6 +71,7 @@ export function createAskUserExtension(options: AskUserExtensionOptions = {}): E
 export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions {
   readonly executionAdapter?: FramerExecutionAdapter;
   readonly scratchAdapter?: FramerScratchFileAdapter;
+  readonly visualAdapter?: FramerVisualAdapter;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
   readonly capabilityProfile?: FramerModelCapabilityProfile;
 }
@@ -90,6 +92,7 @@ export function createFramerAgentCoreExtension(
     const state = createFramerRunState();
     options.onSessionStateCreated?.(state);
     createFramerCanvasExtension(options.executionAdapter, { state })(pi);
+    if (options.visualAdapter) createFramerVisualExtension(options.visualAdapter, state)(pi);
     if (options.scratchAdapter) {
       createFramerCodeFilesExtension({
         executionAdapter: options.executionAdapter,

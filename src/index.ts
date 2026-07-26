@@ -65,6 +65,8 @@ export {
   recordCodeVerification,
 } from "./framer-run-state.js";
 export type { CodeFileRunState, CodeVerificationStatus, FramerRunState } from "./framer-run-state.js";
+export { createFramerVisualExtension } from "./framer-visual.js";
+export type { FramerVisualAdapter, FramerImage, GeometryDiagnostic, GeometryResult, StockImageCandidate } from "./framer-visual.js";
 export {
   FRAMER_GUIDANCE_AGENTS_MARKER,
   FRAMER_GUIDANCE_COMPILER_VERSION,
