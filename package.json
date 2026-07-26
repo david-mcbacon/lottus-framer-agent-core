@@ -1,0 +1,64 @@
+{
+  "name": "@lottus-agent/framer-core",
+  "version": "0.1.0",
+  "description": "Shared Pi runtime contracts for safe, evidence-backed Framer agent work",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/david-mcbacon/lottus-framer-agent-core.git"
+  },
+  "homepage": "https://github.com/david-mcbacon/lottus-framer-agent-core#readme",
+  "bugs": {
+    "url": "https://github.com/david-mcbacon/lottus-framer-agent-core/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE.md",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./pi": {
+      "types": "./dist/pi.d.ts",
+      "import": "./dist/pi.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:pack": "pnpm build && node scripts/test-pack.mjs",
+    "verify": "pnpm typecheck && pnpm test && pnpm test:pack"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "0.80.6",
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.80.6",
+    "@earendil-works/pi-coding-agent": "0.80.6",
+    "@types/node": "^22.19.15",
+    "typebox": "1.1.38",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "packageManager": "pnpm@10.25.0"
+}
