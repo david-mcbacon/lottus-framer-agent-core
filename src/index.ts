@@ -22,6 +22,7 @@ export type {
   FramerReviewStatus,
 } from "./contracts.js";
 export {
+  FRAMER_IMPLEMENTATION_GUIDES,
   FRAMER_RESULT_PREFIX,
   createFramerCanvasExtension,
 } from "./framer-canvas.js";

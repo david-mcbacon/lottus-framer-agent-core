@@ -46,9 +46,36 @@ describe("Framer canvas Core conformance", () => {
       "framer_apply_changes",
       "framer_docs",
       "framer_exec",
+      "framer_get_guides",
       "framer_publish",
+      "framer_search_fonts",
       "framer_verify_mutation",
     ]);
+  });
+
+  it("retrieves multiple exact guides through one public project query", async () => {
+    const { tools, adapter } = harness();
+    adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ queryResults: [{ name: "Buttons" }, { name: "Forms" }] })}`;
+    const result = await requireCapturedTool(tools, "framer_get_guides").execute(
+      "guides",
+      { names: ["Buttons", "Forms"], pagePath: "/" } as never,
+    ) as { content: Array<{ text: string }> };
+    expect(adapter.executions).toHaveLength(1);
+    expect(adapter.executions[0]?.source).toContain('"implementation-guide-from-index","name":"Buttons"');
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({ source: "framer.agent.readProject", kind: "implementation-guides" });
+    await expect(requireCapturedTool(tools, "framer_get_guides").execute(
+      "unknown", { names: ["Imaginary Guide"] } as never,
+    )).rejects.toThrow("Unknown Framer implementation guide: Imaginary Guide");
+  });
+
+  it("delegates bounded font descriptors without reranking", async () => {
+    const { tools, adapter } = harness();
+    adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ queryResults: [{ fonts: ["Second", "First"] }] })}`;
+    const result = await requireCapturedTool(tools, "framer_search_fonts").execute("fonts", {
+      search: { query: "modern page typography", limit: 5, mustHave: ["serif"], mustHaveAlternativeCharacters: ["t"] },
+    } as never) as { content: Array<{ text: string }> };
+    expect(adapter.executions[0]?.source).toContain('"mustHaveAlternativeCharacters":["t"]');
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({ matcher: "framer-server", result: { queryResults: [{ fonts: ["Second", "First"] }] } });
   });
 
   it("validates exact documentation symbols and delegates valid lookup", async () => {

@@ -85,8 +85,10 @@ describe("Framer code-file Core conformance", () => {
       "framer_create_code_file",
       "framer_docs",
       "framer_exec",
+      "framer_get_guides",
       "framer_publish",
       "framer_read_code_file",
+      "framer_search_fonts",
       "framer_update_code_file",
       "framer_verify_mutation",
     ]);

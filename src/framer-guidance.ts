@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { CORE_GUIDANCE_AGENTS, CORE_GUIDANCE_SYSTEM } from "./guidance-instructions.js";
 
-export const FRAMER_GUIDANCE_SCHEMA_VERSION = 3;
-export const FRAMER_GUIDANCE_COMPILER_VERSION = "3.0.1";
+export const FRAMER_GUIDANCE_SCHEMA_VERSION = 4;
+export const FRAMER_GUIDANCE_COMPILER_VERSION = "4.0.0";
 export const FRAMER_GUIDANCE_AGENTS_MARKER = "<!-- lottus-agents-v10 -->";
 
 export interface GuidanceSourceFile {
@@ -142,10 +142,21 @@ const EXPECTED_REFERENCES = [
   "reference/project/links.md",
   "reference/project/project-data.md",
   "reference/guides/index.md",
+  "reference/tools/analytics.md",
+  "reference/strategy/visual-verification.md",
+  "reference/project/live-context.md",
+  "reference/strategy/canvas-vs-code.md",
   "reference/code/authoring.md",
   "reference/code/controls-overview.md",
   "reference/start-conversation.md",
   "reference/limitations.md",
+] as const;
+
+const CRITICAL_REFERENCES = [
+  "reference/tools/inspect.md", "reference/tools/apply.md",
+  "reference/strategy/creation.md", "reference/strategy/edit.md", "reference/strategy/recreation.md",
+  "reference/strategy/planning.md", "reference/strategy/verification.md",
+  "reference/project/scopes.md", "reference/dsl/base.md", "reference/guides/index.md",
 ] as const;
 
 const CODE_CONTROL_NAMES = [
@@ -347,6 +358,16 @@ function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+/** Stable semantic key across upstream heading style-only changes. */
+function semanticHeading(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
+    .replace(/[_-]+/gu, " ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
+}
+
 function codeControlSlug(title: string): string | undefined {
   const normalized = slug(title.replace(/\s+control(?:\s+types?)?$/i, ""));
   const aliases: Record<string, string> = {
@@ -442,8 +463,8 @@ function exampleTarget(content: string, code = false): string {
 function classifyChunk(document: SourceDocument, chunk: MarkdownChunk): { outputs: Map<string, string[]>; disposition?: "excluded"; reason?: string } {
   const outputs = new Map<string, string[]>();
   const add = (target: string, content = chunk.content) => outputs.set(target, [...(outputs.get(target) ?? []), content]);
-  const title = chunk.title.toLowerCase();
-  const parents = chunk.parents.join(" / ").toLowerCase();
+  const title = semanticHeading(chunk.title);
+  const parents = chunk.parents.map(semanticHeading).join(" / ");
   const combined = `${parents} / ${title}`;
 
   if (/reviewchanges|framer_review_changes/.test(chunk.content.toLowerCase())) {
@@ -506,13 +527,17 @@ function classifyChunk(document: SourceDocument, chunk: MarkdownChunk): { output
   else if (/creation strategy|capture creative direction|requesting fonts|density|aesthetic|layouts/.test(combined) && parents.includes("implementation strategy")) add("reference/strategy/creation.md");
   else if (/edit strategy|how to/.test(combined) && parents.includes("implementation strategy")) add("reference/strategy/edit.md");
   else if (/determining strategy|design plan|guides|implementation strategy/.test(title)) add("reference/strategy/planning.md");
-  else if (/update loop|implement and review|visual verification/.test(combined)) add("reference/strategy/verification.md");
+  else if (/visual verification/.test(combined)) add("reference/strategy/visual-verification.md");
+  else if (/update loop|implement and review/.test(combined)) add("reference/strategy/verification.md");
   else if (/control lookup/.test(title)) add("reference/tools/controls.md");
   else if (/tree inspection|readproject|read project|serialize|definitions|execute code|shell quoting|api documentation/.test(combined) && parents.includes("tools")) add("reference/tools/inspect.md");
   else if (/applychanges|replacing text|update loop/.test(title)) add("reference/tools/apply.md");
   else if (/publish/.test(title)) add("reference/tools/publish.md");
   else if (/queryimages/.test(title)) add("reference/tools/images.md");
   else if (/flattencomponent|makeexternalcomponent/.test(title)) add("reference/tools/code.md");
+  else if (/query analytics|analytics/.test(combined)) add("reference/tools/analytics.md");
+  else if (/canvas (?:versus|vs) code|canvas or code|code component vs/.test(combined)) add("reference/strategy/canvas-vs-code.md");
+  else if (/live context|system state|project context/.test(combined)) add("reference/project/live-context.md");
   else if (title === "tools") add("reference/tools/inspect.md");
   else if (/scope types|replicas/.test(combined)) add("reference/project/scopes.md");
   else if (/layout templates|layout recipe|positioning|width rules/.test(combined)) add("reference/project/layout.md");
@@ -631,6 +656,17 @@ export function compileFramerGuidance(input: CompileFramerGuidanceInput): Compil
     }
   }
 
+  const missingCritical = adapted.fallback
+    ? []
+    : CRITICAL_REFERENCES.filter((reference) => !(parts.get(reference)?.length));
+  const fallback = adapted.fallback || missingCritical.length > 0;
+  const warnings = [
+    ...adapted.warnings,
+    ...(missingCritical.length
+      ? [`Recognized Framer guidance omitted critical semantic routes (${missingCritical.join(", ")}); retained complete upstream fallback.`]
+      : []),
+  ];
+
   const projectFiles = new Map<string, ReferencePart[]>();
   if (adapted.inventory) {
     const inventory = adapted.inventory.content;
@@ -672,18 +708,18 @@ export function compileFramerGuidance(input: CompileFramerGuidanceInput): Compil
     generatedFiles.push({ path: `.lottus/framer/${projectName}`, content: projectName === "project/index.md" ? `${baseProjectIndex.trimEnd()}\n\n${rendered}` : rendered });
   }
 
-  const fallbackBody = adapted.fallback
+  const fallbackBody = fallback
     ? upstreamBundle.files.map((file) => `# Source: ${file.path}\n\n${file.content}`).join("\n\n---\n\n")
     : ["# Upstream fallback index", "", "Use only when a focused routed shard is missing required material.", "", ...rawFiles.map((file) => `- \`${file.path}\``)].join("\n");
   generatedFiles.push({ path: ".lottus/framer/reference/fallback.md", content: withFinalNewline(fallbackBody) });
   generatedFiles.push(...rawFiles);
   generatedFiles.push({
     path: ".lottus/framer/upstream/metadata.json",
-    content: `${JSON.stringify({ adapter: adapted.adapter, fallback: adapted.fallback, warnings: adapted.warnings, promptHash: adapted.promptHash, contextHash: adapted.contextHash }, null, 2)}\n`,
+    content: `${JSON.stringify({ adapter: adapted.adapter, fallback, warnings, promptHash: adapted.promptHash, contextHash: adapted.contextHash }, null, 2)}\n`,
   });
 
   const system = renderSystem(input);
-  const agents = renderAgents(input, adapted.fallback);
+  const agents = renderAgents(input, fallback);
   const allOutputs = [{ path: ".pi/SYSTEM.md", content: system }, { path: "AGENTS.md", content: agents }, ...generatedFiles];
   const contentHash = contentHashFor(allOutputs);
   const manifest: GuidanceManifest = {
@@ -693,8 +729,8 @@ export function compileFramerGuidance(input: CompileFramerGuidanceInput): Compil
     projectId: input.projectId,
     sessionId: input.sessionId,
     sourceAdapter: adapted.adapter,
-    fallback: adapted.fallback,
-    warnings: adapted.warnings,
+    fallback,
+    warnings,
     upstream: {
       promptHash: adapted.promptHash,
       contextHash: adapted.contextHash,

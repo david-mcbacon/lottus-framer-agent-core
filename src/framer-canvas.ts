@@ -6,6 +6,12 @@ import { createFramerRunState, type FramerRunState } from "./framer-run-state.js
 
 export const FRAMER_RESULT_PREFIX = "[LOTTUS_FRAMER_RESULT_V1]";
 
+export const FRAMER_IMPLEMENTATION_GUIDES = [
+  "Analytics", "Buttons", "CMS Collection Lists", "CMS Detail Pages", "Computed Values",
+  "Cursors", "Effects", "FAQ", "Forms", "Grids", "Lists", "Logos", "Masks",
+  "Navigations", "Overlays", "Shaders", "Spinners", "Typography", "Tables in CMS Rich Text",
+] as const;
+
 export interface FramerRenderedOutput {
   readonly visibleOutput: string;
   readonly details?: Readonly<Record<string, unknown>>;
@@ -63,6 +69,15 @@ function extractStructuredResult(output: string): unknown {
   }
 }
 
+function compactProjectQueryResult(kind: "implementation-guides" | "font-search", result: unknown): string {
+  return JSON.stringify({
+    source: "framer.agent.readProject",
+    matcher: kind === "font-search" ? "framer-server" : undefined,
+    kind,
+    result,
+  });
+}
+
 export function createFramerCanvasExtension(
   adapter: FramerExecutionAdapter,
   options: FramerCanvasExtensionOptions = {},
@@ -84,6 +99,54 @@ export function createFramerCanvasExtension(
         }
         const rendered = await adapter.docs(query, { ...(signal ? { signal } : {}), workspaceRoot: ctx?.cwd ?? process.cwd() });
         return { content: [{ type: "text" as const, text: rendered.visibleOutput }], details: rendered.details };
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_get_guides",
+      label: "Framer Implementation Guides",
+      description: "Retrieve one or more exact first-party Framer implementation guides in one bounded request.",
+      promptSnippet: "Load exact implementation guides needed for the current plan",
+      parameters: Type.Object({
+        names: Type.Array(StringEnum(FRAMER_IMPLEMENTATION_GUIDES), { minItems: 1, maxItems: 8, uniqueItems: true }),
+        pagePath: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+      }, { additionalProperties: false }),
+      async execute(_id, input, signal, _update, ctx) {
+        const unknown = input.names.find((name) => !FRAMER_IMPLEMENTATION_GUIDES.includes(name));
+        if (unknown) throw new Error(`Unknown Framer implementation guide: ${unknown}`);
+        const queries = input.names.map((name) => ({ type: "implementation-guide-from-index", name }));
+        const source = `const result = await framer.agent.readProject(${JSON.stringify(queries)}${input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : ""}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(result));`;
+        const executed = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        const result = extractStructuredResult(executed.rawOutput);
+        const compact = compactProjectQueryResult("implementation-guides", result);
+        return { content: [{ type: "text" as const, text: compact }], details: { ...executed.details, source: "framer.agent.readProject", guideNames: input.names } };
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_search_fonts",
+      label: "Framer Font Search",
+      description: "Use Framer's server-side font matcher by exact family name or compact semantic query. Results preserve Framer ordering.",
+      promptSnippet: "Search first-party Framer fonts without local reranking",
+      parameters: Type.Object({
+        search: Type.Union([
+          Type.Object({ name: Type.String({ minLength: 1, maxLength: 120 }) }, { additionalProperties: false }),
+          Type.Object({
+            query: Type.String({ minLength: 2, maxLength: 160 }),
+            limit: Type.Integer({ minimum: 1, maximum: 10 }),
+            mustHave: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 80 }), { maxItems: 12, uniqueItems: true })),
+            mustHaveAlternativeCharacters: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 8 }), { maxItems: 12, uniqueItems: true })),
+          }, { additionalProperties: false }),
+        ]),
+        pagePath: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+      }, { additionalProperties: false }),
+      async execute(_id, input, signal, _update, ctx) {
+        const query = { type: "font-search", ...input.search };
+        const source = `const result = await framer.agent.readProject([${JSON.stringify(query)}]${input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : ""}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(result));`;
+        const executed = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        const result = extractStructuredResult(executed.rawOutput);
+        const compact = compactProjectQueryResult("font-search", result);
+        return { content: [{ type: "text" as const, text: compact }], details: { ...executed.details, source: "framer.agent.readProject", matcher: "framer-server" } };
       },
     });
 

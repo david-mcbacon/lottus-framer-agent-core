@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   compileFramerGuidance,
@@ -41,7 +42,8 @@ describe("compileFramerGuidance public seam", () => {
   it("routes recognized guidance and Project Inventory shards with coverage", () => {
     const result = compileFramerGuidance(input());
     expect(result.manifest.sourceAdapter).toBe("v38-project-bundle");
-    expect(result.manifest.fallback).toBe(false);
+    expect(result.manifest.fallback).toBe(true);
+    expect(result.manifest.warnings.join(" ")).toContain("critical semantic routes");
     expect(result.files.find((file) => file.path.endsWith("reference/tools/inspect.md"))?.content).toContain("readProject");
     expect(result.files.find((file) => file.path.endsWith("project/site-map.md"))?.content).toContain("Home");
     expect(result.manifest.coverage.some((entry) => entry.disposition === "mapped")).toBe(true);
@@ -49,6 +51,37 @@ describe("compileFramerGuidance public seam", () => {
       expect.objectContaining({ id: "core:SYSTEM", provenance: "lottus-owned", redistribution: "approved" }),
       expect.objectContaining({ id: "framer/projects/demo/prompt/main.md", provenance: "runtime-upstream", redistribution: "runtime-only" }),
     ]));
+  });
+
+  it("keeps every critical route reachable for the complete supported fixture", () => {
+    const root = new URL("./fixtures/framer-agent-0.0.38/", import.meta.url);
+    const files: GuidanceSourceFile[] = [
+      { path: "framer/projects/demo/metadata.json", content: JSON.stringify({ contextSchemaVersion: 1 }) },
+      { path: "framer/projects/demo/project-inventory.md", content: "<pages><page name=\"Home\" /></pages><fonts><font name=\"Inter\" /></fonts>" },
+      ...readdirSync(new URL("prompt/", root)).map((name) => ({
+        path: `framer/projects/demo/prompt/${name}`,
+        content: readFileSync(new URL(`prompt/${name}`, root), "utf8"),
+      })),
+      { path: "framer/projects/demo/recipes.md", content: readFileSync(new URL("recipes.md", root), "utf8") },
+    ];
+    const result = compileFramerGuidance(input(files));
+    expect(result.manifest.fallback).toBe(false);
+    for (const route of ["tools/inspect", "tools/apply", "strategy/creation", "strategy/edit", "strategy/recreation", "strategy/planning", "strategy/verification", "project/scopes", "dsl/base", "guides/index"]) {
+      const file = result.files.find((candidate) => candidate.path.endsWith(`reference/${route}.md`));
+      expect(file?.content, route).toContain("## Source:");
+    }
+    expect(result.manifest.coverage.filter((entry) => entry.disposition === "mapped").every((entry) => entry.sourceHash && entry.outputs.length)).toBe(true);
+  });
+
+  it("normalizes camel, snake, kebab, and spaced headings before routing", () => {
+    const variants = ["TreeInspection", "tree_inspection", "tree-inspection", "Tree Inspection"];
+    for (const heading of variants) {
+      const files = recognizedFiles().map((file) => file.path.endsWith("prompt/main.md")
+        ? { ...file, content: prompt.replace("Tree Inspection", heading) }
+        : file);
+      const result = compileFramerGuidance(input(files));
+      expect(result.files.find((file) => file.path.endsWith("reference/tools/inspect.md"))?.content, heading).toContain("readProject");
+    }
   });
 
   it("preserves every malformed or incomplete source verbatim and warns", () => {
