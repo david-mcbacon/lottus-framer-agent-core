@@ -16,8 +16,13 @@ try {
   const sourcePackage = JSON.parse(await readFile(join(repo, "package.json"), "utf8"));
   assert(sourcePackage.license === "MIT", "Package license must be MIT.");
   assert(sourcePackage.engines?.node === ">=20", "Package must declare its supported Node environment.");
-  assert(sourcePackage.version.includes("-"), "Release-candidate verification requires a prerelease version.");
-  assert(sourcePackage.publishConfig?.tag && sourcePackage.publishConfig.tag !== "latest", "Prereleases must publish under a non-stable tag.");
+  const isPrerelease = sourcePackage.version.includes("-");
+  const publishTag = sourcePackage.publishConfig?.tag;
+  assert(publishTag, "Package must declare an explicit npm publish tag.");
+  assert(
+    isPrerelease ? publishTag !== "latest" : publishTag === "latest",
+    isPrerelease ? "Prereleases must publish under a non-stable tag." : "Stable releases must publish under the latest tag.",
+  );
   for (const dependency of ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"]) {
     assert(sourcePackage.peerDependencies?.[dependency] === "0.80.6", `${dependency} must certify exactly Pi 0.80.6.`);
     assert(!sourcePackage.dependencies?.[dependency], `${dependency} must not be a bundled runtime dependency.`);

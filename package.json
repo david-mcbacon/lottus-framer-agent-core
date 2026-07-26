@@ -1,6 +1,6 @@
 {
   "name": "@lottus-agent/framer-core",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0",
   "description": "Shared Pi runtime contracts for safe, evidence-backed Framer agent work",
   "license": "MIT",
   "repository": {
@@ -51,14 +51,15 @@
     "test:guidance": "vitest run test/framer-guidance.test.ts",
     "test:pack": "node scripts/test-pack.mjs",
     "verify": "pnpm typecheck && pnpm test && pnpm test:pack",
-    "release:rc": "npm publish --tag rc --access public"
+    "release:rc": "npm publish --tag rc --access public",
+    "release:stable": "npm publish --tag latest --access public"
   },
   "engines": {
     "node": ">=20"
   },
   "publishConfig": {
     "access": "public",
-    "tag": "rc"
+    "tag": "latest"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "0.80.6",

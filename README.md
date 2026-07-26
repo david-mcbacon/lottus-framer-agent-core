@@ -5,7 +5,7 @@ UI-agnostic Pi extension contracts for Framer agent work after a host has establ
 ## Install
 
 ```sh
-pnpm add @lottus-agent/framer-core@rc
+pnpm add --save-exact @lottus-agent/framer-core@0.1.0
 ```
 
 The host must provide the peer dependencies. This release is certified against exactly Pi `0.80.6` and does not promise compatibility with any wider Pi version range or bundle another Pi runtime. Node.js 20 or newer is supported.
@@ -39,9 +39,11 @@ const extension = createFramerAgentCoreExtension({
 
 When supplied an execution adapter, the same extension registers `framer_docs`, `framer_exec`, `framer_apply_changes`, and the evidence-gated `finish_framer_work` completion tool. Supplying a scratch-file adapter additionally registers the canonical `framer_read_code_file`, `framer_create_code_file`, `framer_update_code_file`, and `framer_check_code_file` lifecycle. Core owns filename/source validation, optimistic-concurrency snapshots, generated Framer scripts, normalized exports and diagnostics, expected-export checks, derived review status, structured completion, and session-local mutation/publication state. Hosts own command execution, scratch filesystem policy, and presentation of the stable `lottus_framer_completion` details.
 
-## Contributor consumption workflows
+## Maintainer workflows
 
-To exercise unpublished Core changes in a sibling host without depending on the repository layout, build and link the package:
+### Develop with a sibling repository
+
+Build Core and create a temporary global link, then consume it from the sibling host:
 
 ```sh
 # In lottus-framer-agent-core
@@ -53,14 +55,32 @@ pnpm link --global
 pnpm link --global @lottus-agent/framer-core
 ```
 
-Before packaged Desktop acceptance, prefer the immutable prerelease artifact over linking:
+Links are for development only. Restore a registry dependency and lockfile before committing host release configuration.
+
+### Test a prerelease
+
+Publish a semver prerelease with `pnpm release:rc`, which uses the non-stable `rc` tag. Install the immutable version—not the moving tag—in every release-candidate host:
 
 ```sh
-pnpm add @lottus-agent/framer-core@rc
+pnpm add --save-exact @lottus-agent/framer-core@0.1.1-rc.1
 ```
 
-Maintainers verify the exact tarball with `pnpm test:pack` and publish it with `pnpm release:rc`, which explicitly selects the non-stable `rc` tag. Run `pnpm verify` before either workflow.
+Run Core's `pnpm verify`, then the host's typecheck, integration tests, and packaged-artifact checks. Confirm the lockfile resolves the npm tarball and the package uses the host's Pi peer runtime rather than installing another copy.
+
+### Upgrade and verify a stable version
+
+1. Run `pnpm verify` in Core and publish with `pnpm release:stable` only after prerelease acceptance.
+2. In each host, run `pnpm add --save-exact @lottus-agent/framer-core@<version>` and commit both manifest and lockfile.
+3. Search release configuration for stale prerelease, `file:`, and `link:` references.
+4. Run Core conformance and packed-artifact verification plus the host's typecheck, focused integration suite, redistribution audit, and packaged runtime/Electron acceptance.
+5. Record the exact Core version and redistribution result in the host release checklist.
+
+### Roll back
+
+Core versions are immutable. Do not unpublish or replace an artifact. Reinstall the last verified exact version in the host, regenerate its lockfile from npm, rerun the same compatibility and packaged-artifact checks, and release the host rollback. Deprecate a faulty Core version on npm when appropriate; moving a dist-tag alone does not change an already locked host.
 
 ## Scope and licensing
 
-Core begins after the host has connected a Live Framer Session. Connections, credentials, persistence, Electron/React UI, and tenant security stay in the host. See [NOTICE.md](./NOTICE.md) for the separate treatment of Lottus names and marks.
+Core starts only after a host has established an authenticated, preconnected Live Framer Session. It defines the agent tools, run state, evidence, structured questions/completion, and Guidance used after connection. It does **not** authorize projects, create or operate relays, manage credentials, or create, reconnect, health-check, or destroy Live Framer Sessions. Persistence, Electron/React UI, and tenant security also stay in the host.
+
+The [MIT license](./LICENSE) grants rights to the source code. It does not grant rights to use Lottus names, logos, or product marks; see [NOTICE.md](./NOTICE.md).
