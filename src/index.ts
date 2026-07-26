@@ -1,13 +1,16 @@
 export {
   DESIGN_QUESTION_DETAILS_TYPE,
   askUserSchema,
+  designQuestionAnswerDisplay,
   designQuestionTopics,
   formatDesignQuestionAnswer,
   isDesignQuestionDetails,
+  parseDesignQuestionAnswer,
   validateAskUserInput,
 } from "./contracts.js";
 export type {
   AskUserInput,
+  DesignQuestionAnswer,
   DesignQuestionDetails,
   DesignQuestionOption,
   DesignQuestionTopic,

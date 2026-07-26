@@ -4,6 +4,7 @@ import {
   createFramerAgentCoreExtension,
   formatDesignQuestionAnswer,
   isDesignQuestionDetails,
+  parseDesignQuestionAnswer,
   type AskUserInput,
   type DesignQuestionDetails,
 } from "../src/index.js";
@@ -90,8 +91,59 @@ describe("public Pi extension seam", () => {
       "ask_user",
     );
     const result = (await tool.execute("answer", input as never)) as { details: DesignQuestionDetails };
-    expect(formatDesignQuestionAnswer(result.details, result.details.options[1]!)).toBe(
-      "Design Question answer\nQuestion ID: q-answer\nSelected option: bold — Bold and expressive",
+    expect(
+      formatDesignQuestionAnswer(result.details, {
+        kind: "option",
+        option: result.details.options[1]!,
+      }),
+    ).toBe("Design Question answer\nQuestion ID: q-answer\nSelected option: bold — Bold and expressive");
+  });
+
+  it("formats free-form and delegated answers only when the question allows them", async () => {
+    const tool = requireCapturedTool(
+      captureExtensionTools(createFramerAgentCoreExtension({ createQuestionId: () => "q-open" })),
+      "ask_user",
     );
+    const strict = (await tool.execute("strict", input as never)) as { details: DesignQuestionDetails };
+    expect(() => formatDesignQuestionAnswer(strict.details, { kind: "other", text: "Something else" })).toThrow(
+      /free-form/,
+    );
+    expect(() => formatDesignQuestionAnswer(strict.details, { kind: "delegation" })).toThrow(/delegation/);
+
+    const open = (await tool.execute("open", {
+      ...input,
+      allowOther: true,
+      allowDelegation: true,
+    } as never)) as { details: DesignQuestionDetails };
+    expect(formatDesignQuestionAnswer(open.details, { kind: "other", text: "  Split hero  " })).toContain(
+      "Designer-provided answer: Split hero",
+    );
+    expect(formatDesignQuestionAnswer(open.details, { kind: "delegation" })).toContain(
+      "The designer delegated this decision",
+    );
+  });
+
+  it("parses its own answer messages back to a question and display label", async () => {
+    const tool = requireCapturedTool(
+      captureExtensionTools(createFramerAgentCoreExtension({ createQuestionId: () => "q-parse" })),
+      "ask_user",
+    );
+    const result = (await tool.execute("parse", {
+      ...input,
+      allowOther: true,
+      allowDelegation: true,
+    } as never)) as { details: DesignQuestionDetails };
+
+    for (const [answer, display] of [
+      [{ kind: "option", option: result.details.options[1]! }, "Bold and expressive"],
+      [{ kind: "other", text: "Split hero" }, "Split hero"],
+      [{ kind: "delegation" }, "Use your judgment"],
+    ] as const) {
+      expect(parseDesignQuestionAnswer(formatDesignQuestionAnswer(result.details, answer))).toEqual({
+        questionId: "q-parse",
+        display,
+      });
+    }
+    expect(parseDesignQuestionAnswer("Just a normal prompt")).toBeUndefined();
   });
 });

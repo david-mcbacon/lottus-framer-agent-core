@@ -112,18 +112,81 @@ export function isDesignQuestionDetails(value: unknown): value is DesignQuestion
   );
 }
 
+export type DesignQuestionAnswer =
+  | { readonly kind: "option"; readonly option: DesignQuestionOption }
+  | { readonly kind: "other"; readonly text: string }
+  | { readonly kind: "delegation" };
+
+const DESIGN_QUESTION_ANSWER_HEADER = "Design Question answer";
+const DESIGN_QUESTION_ANSWER_ID_PREFIX = "Question ID:";
+
+/** Human-facing label for an answer, used by transcript UIs. */
+export function designQuestionAnswerDisplay(answer: DesignQuestionAnswer): string {
+  if (answer.kind === "option") return answer.option.title;
+  if (answer.kind === "other") return answer.text;
+  return "Use your judgment";
+}
+
 export function formatDesignQuestionAnswer(
   question: DesignQuestionDetails,
-  option: DesignQuestionOption,
+  answer: DesignQuestionAnswer,
 ): string {
-  if (!question.options.some((candidate) => candidate.id === option.id)) {
-    throw new Error(`Unknown Design Question option: ${option.id}`);
-  }
   return [
-    "Design Question answer",
-    `Question ID: ${question.questionId}`,
-    `Selected option: ${option.id} — ${option.title}`,
+    DESIGN_QUESTION_ANSWER_HEADER,
+    `${DESIGN_QUESTION_ANSWER_ID_PREFIX} ${question.questionId}`,
+    designQuestionAnswerBody(question, answer),
   ].join("\n");
+}
+
+function designQuestionAnswerBody(
+  question: DesignQuestionDetails,
+  answer: DesignQuestionAnswer,
+): string {
+  if (answer.kind === "option") {
+    if (!question.options.some((candidate) => candidate.id === answer.option.id)) {
+      throw new Error(`Unknown Design Question option: ${answer.option.id}`);
+    }
+    return `Selected option: ${answer.option.id} — ${answer.option.title}`;
+  }
+  if (answer.kind === "other") {
+    const text = answer.text.trim();
+    if (!text) throw new Error("Design Question answer text must not be blank");
+    if (!question.allowOther) {
+      throw new Error("This Design Question does not accept a free-form answer");
+    }
+    return `Designer-provided answer: ${text}`;
+  }
+  if (!question.allowDelegation) {
+    throw new Error("This Design Question does not accept delegation");
+  }
+  return "The designer delegated this decision: use your judgment and choose the strongest outcome for the stated goals.";
+}
+
+/**
+ * Recognizes the answer messages produced by {@link formatDesignQuestionAnswer}
+ * so transcript UIs can attribute them back to their question instead of
+ * rendering the raw machine text.
+ */
+export function parseDesignQuestionAnswer(
+  text: string,
+): { readonly questionId: string; readonly display: string } | undefined {
+  const lines = text.trim().split("\n");
+  if (lines[0]?.trim() !== DESIGN_QUESTION_ANSWER_HEADER) return undefined;
+  const idLine = lines[1]?.trim() ?? "";
+  if (!idLine.startsWith(DESIGN_QUESTION_ANSWER_ID_PREFIX)) return undefined;
+  const questionId = idLine.slice(DESIGN_QUESTION_ANSWER_ID_PREFIX.length).trim();
+  if (!questionId) return undefined;
+  const body = lines.slice(2).join("\n").trim();
+  return { questionId, display: designAnswerDisplayFromBody(body) };
+}
+
+function designAnswerDisplayFromBody(body: string): string {
+  const selected = /^Selected option: [^\s]+ — (.+)$/.exec(body);
+  if (selected?.[1]) return selected[1];
+  const other = /^Designer-provided answer: ([\s\S]+)$/.exec(body);
+  if (other?.[1]) return other[1];
+  if (body.startsWith("The designer delegated this decision")) return "Use your judgment";
+  return body;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
