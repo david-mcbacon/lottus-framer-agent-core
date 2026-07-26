@@ -10,6 +10,11 @@
       "path": "NOTICE.md",
       "provenance": "Lottus legal notice",
       "redistribution": "approved"
+    },
+    {
+      "path": "docs/release-0.2.0.md",
+      "provenance": "Lottus release evaluation",
+      "redistribution": "approved"
     }
   ]
 }

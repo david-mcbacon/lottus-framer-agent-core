@@ -5,10 +5,22 @@ UI-agnostic Pi extension contracts for Framer agent work after a host has establ
 ## Install
 
 ```sh
-pnpm add --save-exact @lottus-agent/framer-core@0.1.0
+pnpm add --save-exact @lottus-agent/framer-core@0.2.0
 ```
 
 The host must provide the peer dependencies. This release is certified against exactly Pi `0.80.6` and does not promise compatibility with any wider Pi version range or bundle another Pi runtime. Node.js 20 or newer is supported.
+
+## Compatibility
+
+| Contract | Supported version |
+| --- | --- |
+| `@framer/agent` prompt/API fixture | `0.0.38` |
+| Framer public API | Methods listed by `REQUIRED_FRAMER_PUBLIC_METHODS`; checked at runtime |
+| Pi (`pi-ai`, `pi-coding-agent`) | `0.80.6` exactly |
+| Node.js host | `>=20` |
+| Core live-context schema | `1` |
+
+Hosts must run `inspectFramerCompatibility` against the connected Framer runtime. A new upstream version is unsupported until its complete prompt fixture and public-method record pass conformance.
 
 ## Exports
 
@@ -19,6 +31,7 @@ The host must provide the peer dependencies. This release is certified against e
 - `@lottus-agent/framer-core/testing` — public extension capture utilities for conformance tests.
 
 Prompt Run efficiency, immutable-prefix, upstream compatibility, and model capability-profile baselines are documented in [`docs/baseline.md`](./docs/baseline.md).
+The 0.2.0 release evaluation and Cloud-facing contract boundary are recorded in [`docs/release-0.2.0.md`](./docs/release-0.2.0.md).
 
 ```ts
 import {
@@ -83,7 +96,7 @@ Run Core's `pnpm verify`, then the host's typecheck, integration tests, and pack
 
 ### Roll back
 
-Core versions are immutable. Do not unpublish or replace an artifact. Reinstall the last verified exact version in the host, regenerate its lockfile from npm, rerun the same compatibility and packaged-artifact checks, and release the host rollback. Deprecate a faulty Core version on npm when appropriate; moving a dist-tag alone does not change an already locked host.
+Core versions are immutable. Do not unpublish or replace an artifact. Reinstall the last verified exact version in the host (for 0.2.0, rollback is `pnpm add --save-exact @lottus-agent/framer-core@0.1.0`), regenerate its lockfile from npm, rerun the same compatibility and packaged-artifact checks, and release the host rollback. Deprecate a faulty Core version on npm when appropriate; moving a dist-tag alone does not change an already locked host.
 
 ## Scope and licensing
 

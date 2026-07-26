@@ -42,7 +42,7 @@ try {
     assert(packedPaths.has(targets.types.slice(2)), `Export ${name} is missing its declaration file.`);
   }
 
-  const allowedPaths = new Set(["LICENSE", "NOTICE.md", "README.md", "package.json", "redistribution-manifest.json"]);
+  const allowedPaths = new Set(["LICENSE", "NOTICE.md", "README.md", "docs/release-0.2.0.md", "package.json", "redistribution-manifest.json"]);
   const sourceModules = (await readdir(join(repo, "src")))
     .filter((path) => path.endsWith(".ts"))
     .map((path) => path.slice(0, -3));
@@ -120,6 +120,8 @@ try {
   await exec(process.execPath, ["--input-type=module", "--eval", probe], { cwd: fixture });
 
   const installedPackage = JSON.parse(await readFile(join(fixture, "node_modules/@lottus-agent/framer-core/package.json"), "utf8"));
+  assert(installedPackage.version === sourcePackage.version, "Packed artifact version must match the release source.");
+  assert(installedPackage.repository?.url === sourcePackage.repository?.url, "Packed artifact must retain repository provenance.");
   assert(Object.keys(installedPackage.exports).length === 5, "Fixture must exercise every documented package export.");
   process.stdout.write(`Packed artifact verified in clean fixture: ${tarball}\n`);
 } finally {

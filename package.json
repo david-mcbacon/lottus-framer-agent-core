@@ -1,6 +1,6 @@
 {
   "name": "@lottus-agent/framer-core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared Pi runtime contracts for safe, evidence-backed Framer agent work",
   "license": "MIT",
   "repository": {
@@ -18,6 +18,7 @@
     "LICENSE",
     "NOTICE.md",
     "README.md",
+    "docs/release-0.2.0.md",
     "redistribution-manifest.json"
   ],
   "exports": {
@@ -47,10 +48,10 @@
     "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:conformance": "vitest run test/ask-user.test.ts test/framer-canvas.test.ts test/framer-code-files.test.ts test/framer-completion.test.ts test/framer-operations.test.ts",
+    "test:conformance": "vitest run",
     "test:guidance": "vitest run test/framer-guidance.test.ts",
     "test:pack": "node scripts/test-pack.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm test:pack",
+    "verify": "pnpm typecheck && pnpm test:conformance && pnpm test:pack",
     "release:rc": "npm publish --tag rc --access public",
     "release:stable": "npm publish --tag latest --access public"
   },
