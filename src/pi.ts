@@ -15,9 +15,7 @@ export interface AskUserExtensionOptions {
 export function createAskUserExtension(options: AskUserExtensionOptions = {}): ExtensionFactory {
   const createQuestionId = options.createQuestionId ?? randomUUID;
   return (pi: ExtensionAPI) => {
-    // Deliberately session-local: Pi invokes an extension factory for each session.
-    const questions = new Map<string, DesignQuestionDetails>();
-
+    // Deliberately session-local: Pi invokes this registration for each session.
     pi.registerTool({
       name: "ask_user",
       label: "Ask Designer",
@@ -50,7 +48,6 @@ export function createAskUserExtension(options: AskUserExtensionOptions = {}): E
           allowDelegation: input.allowDelegation ?? false,
           toolCallId,
         };
-        questions.set(details.questionId, details);
         return {
           content: [
             {
