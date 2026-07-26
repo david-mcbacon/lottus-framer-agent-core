@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { createFramerCanvasExtension, type FramerExecutionAdapter } from "./framer-canvas.js";
+import type { FramerRunState } from "./framer-run-state.js";
 import {
   DESIGN_QUESTION_DETAILS_TYPE,
   askUserSchema,
@@ -63,6 +65,24 @@ export function createAskUserExtension(options: AskUserExtensionOptions = {}): E
   };
 }
 
-export function createFramerAgentCoreExtension(options: AskUserExtensionOptions = {}): ExtensionFactory {
-  return createAskUserExtension(options);
+export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions {
+  readonly executionAdapter?: FramerExecutionAdapter;
+  readonly onSessionStateCreated?: (state: FramerRunState) => void;
+}
+
+export function createFramerAgentCoreExtension(
+  options: FramerAgentCoreExtensionOptions = {},
+): ExtensionFactory {
+  const askUser = createAskUserExtension(options);
+  const canvas = options.executionAdapter
+    ? createFramerCanvasExtension(options.executionAdapter, {
+        ...(options.onSessionStateCreated
+          ? { onSessionStateCreated: options.onSessionStateCreated }
+          : {}),
+      })
+    : undefined;
+  return (pi) => {
+    askUser(pi);
+    canvas?.(pi);
+  };
 }

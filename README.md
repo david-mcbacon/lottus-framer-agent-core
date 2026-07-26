@@ -15,15 +15,22 @@ The host must provide the peer dependencies. This release is certified against P
 - `@lottus-agent/framer-core` — aggregate public API.
 - `@lottus-agent/framer-core/pi` — `ask_user` and aggregate Pi extension factories.
 - `@lottus-agent/framer-core/contracts` — Design Question schemas, types, discriminator, validation, and answer formatting.
+- The aggregate export also provides the Framer execution adapter, canvas evidence contracts, and session-local Framer Run State.
 - `@lottus-agent/framer-core/testing` — public extension capture utilities for conformance tests.
 
 ```ts
-import { createFramerAgentCoreExtension } from "@lottus-agent/framer-core";
+import {
+  createFramerAgentCoreExtension,
+  type FramerExecutionAdapter,
+} from "@lottus-agent/framer-core";
 
-const extension = createFramerAgentCoreExtension();
+declare const hostFramerAdapter: FramerExecutionAdapter;
+const extension = createFramerAgentCoreExtension({ executionAdapter: hostFramerAdapter });
 ```
 
 `ask_user` asks one designer-facing, single-select question with two to four visible outcomes. Its terminating result carries `lottus_design_question` details. A host persists the result and submits a later answer as a new user run; Core never waits for the answer.
+
+When supplied an execution adapter, the same extension registers `framer_docs`, `framer_exec`, and `framer_apply_changes`. Core owns their schemas, safety checks, canvas evidence normalization, and session-local mutation/publication state. The adapter owns command discovery and execution against a Live Framer Session that the host has already connected.
 
 ## Scope and licensing
 
