@@ -1,4 +1,5 @@
 import type { CanvasDiagnostic, CanvasEvidenceStatus } from "./canvas-evidence.js";
+import type { FramerReviewStatus } from "./contracts.js";
 
 export type CodeVerificationStatus = "clean" | "issues" | "incomplete";
 
@@ -29,6 +30,39 @@ export function createFramerRunState(): FramerRunState {
     codeFiles: new Map(),
     published: false,
   };
+}
+
+export function derivedReviewStatus(state: FramerRunState): FramerReviewStatus {
+  const codeStates = [...state.codeFiles.values()];
+  const mutated = state.canvasMutationVersion > 0
+    || codeStates.some((item) => item.mutationVersion > 0);
+  if (!mutated) return "not_needed";
+
+  const issues = (
+    state.canvasMutationVersion > 0
+    && (state.canvasEvidenceStatus === "issues" || state.canvasDiagnostics.length > 0)
+  ) || codeStates.some(
+    (item) => item.mutationVersion > 0 && item.verificationStatus === "issues",
+  );
+  return issues ? "issues_remain" : "clean";
+}
+
+export function incompleteReviewReason(state: FramerRunState): string | undefined {
+  if (
+    state.canvasMutationVersion > state.canvasEvidenceVersion
+    || (state.canvasMutationVersion > 0 && state.canvasEvidenceStatus === "incomplete")
+  ) {
+    return "obtain complete diagnostics for the latest canvas mutation with framer_apply_changes";
+  }
+
+  const pending = [...state.codeFiles.entries()]
+    .filter(([, item]) =>
+      item.mutationVersion > item.verificationVersion
+      || (item.mutationVersion > 0 && item.verificationStatus === "incomplete"))
+    .map(([name]) => name);
+  return pending.length > 0
+    ? `verify the latest code-file mutation for ${pending.join(", ")} with framer_check_code_file`
+    : undefined;
 }
 
 export function recordCodeMutation(state: FramerRunState, name: string): CodeFileRunState {

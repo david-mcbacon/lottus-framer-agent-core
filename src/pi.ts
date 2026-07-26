@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { createFramerCanvasExtension, type FramerExecutionAdapter } from "./framer-canvas.js";
 import { createFramerCodeFilesExtension, type FramerScratchFileAdapter } from "./framer-code-files.js";
+import { createFramerCompletionExtension } from "./framer-completion.js";
 import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
 import {
   DESIGN_QUESTION_DETAILS_TYPE,
@@ -89,5 +90,6 @@ export function createFramerAgentCoreExtension(
         state,
       })(pi);
     }
+    createFramerCompletionExtension(state)(pi);
   };
 }

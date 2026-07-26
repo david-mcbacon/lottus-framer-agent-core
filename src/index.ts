@@ -1,10 +1,13 @@
 export {
   DESIGN_QUESTION_DETAILS_TYPE,
+  FRAMER_COMPLETION_DETAILS_TYPE,
   askUserSchema,
   designQuestionAnswerDisplay,
   designQuestionTopics,
+  finishFramerWorkSchema,
   formatDesignQuestionAnswer,
   isDesignQuestionDetails,
+  isFramerCompletionDetails,
   parseDesignQuestionAnswer,
   validateAskUserInput,
 } from "./contracts.js";
@@ -14,6 +17,9 @@ export type {
   DesignQuestionDetails,
   DesignQuestionOption,
   DesignQuestionTopic,
+  FinishFramerWorkInput,
+  FramerCompletionDetails,
+  FramerReviewStatus,
 } from "./contracts.js";
 export {
   FRAMER_RESULT_PREFIX,
@@ -48,7 +54,14 @@ export type {
   FramerScratchFileAdapter,
   NormalizedCodeExport,
 } from "./framer-code-files.js";
-export { createFramerRunState, recordCodeMutation, recordCodeVerification } from "./framer-run-state.js";
+export { createFramerCompletionExtension } from "./framer-completion.js";
+export {
+  createFramerRunState,
+  derivedReviewStatus,
+  incompleteReviewReason,
+  recordCodeMutation,
+  recordCodeVerification,
+} from "./framer-run-state.js";
 export type { CodeFileRunState, CodeVerificationStatus, FramerRunState } from "./framer-run-state.js";
 export { createAskUserExtension, createFramerAgentCoreExtension } from "./pi.js";
 export type { AskUserExtensionOptions, FramerAgentCoreExtensionOptions } from "./pi.js";

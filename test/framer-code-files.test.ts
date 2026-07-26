@@ -75,10 +75,18 @@ async function execute(h: ReturnType<typeof harness>, name: string, input: unkno
 }
 
 describe("Framer code-file Core conformance", () => {
-  it("registers the canonical code-file lifecycle once when both adapters are supplied", () => {
+  it("registers the complete canonical tool catalog once when both adapters are supplied", () => {
     const h = harness();
-    expect([...h.tools.keys()].filter((name) => name.includes("code_file")).sort()).toEqual([
-      "framer_check_code_file", "framer_create_code_file", "framer_read_code_file", "framer_update_code_file",
+    expect([...h.tools.keys()].sort()).toEqual([
+      "ask_user",
+      "finish_framer_work",
+      "framer_apply_changes",
+      "framer_check_code_file",
+      "framer_create_code_file",
+      "framer_docs",
+      "framer_exec",
+      "framer_read_code_file",
+      "framer_update_code_file",
     ]);
   });
 

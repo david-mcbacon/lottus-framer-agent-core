@@ -2,6 +2,38 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Type, type Static } from "typebox";
 
 export const DESIGN_QUESTION_DETAILS_TYPE = "lottus_design_question" as const;
+export const FRAMER_COMPLETION_DETAILS_TYPE = "lottus_framer_completion" as const;
+
+export const finishFramerWorkSchema = Type.Object(
+  {
+    summary: Type.String({ minLength: 1, maxLength: 1000 }),
+    visibleChanges: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), { maxItems: 20 }),
+    unresolvedIssues: Type.Array(Type.String({ minLength: 1, maxLength: 500 }), { maxItems: 20 }),
+  },
+  { additionalProperties: false },
+);
+
+export type FinishFramerWorkInput = Static<typeof finishFramerWorkSchema>;
+export type FramerReviewStatus = "not_needed" | "clean" | "issues_remain";
+
+export interface FramerCompletionDetails {
+  readonly type: typeof FRAMER_COMPLETION_DETAILS_TYPE;
+  readonly summary: string;
+  readonly visibleChanges: readonly string[];
+  readonly reviewStatus: FramerReviewStatus;
+  readonly unresolvedIssues: readonly string[];
+  readonly published: boolean;
+}
+
+export function isFramerCompletionDetails(value: unknown): value is FramerCompletionDetails {
+  return isRecord(value)
+    && value.type === FRAMER_COMPLETION_DETAILS_TYPE
+    && typeof value.summary === "string"
+    && isStringArray(value.visibleChanges)
+    && (value.reviewStatus === "not_needed" || value.reviewStatus === "clean" || value.reviewStatus === "issues_remain")
+    && isStringArray(value.unresolvedIssues)
+    && typeof value.published === "boolean";
+}
 
 export const designQuestionTopics = [
   "purpose",
@@ -187,6 +219,10 @@ function designAnswerDisplayFromBody(body: string): string {
   if (other?.[1]) return other[1];
   if (body.startsWith("The designer delegated this decision")) return "Use your judgment";
   return body;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

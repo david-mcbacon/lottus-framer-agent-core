@@ -35,7 +35,7 @@ const extension = createFramerAgentCoreExtension({
 
 `ask_user` asks one designer-facing, single-select question with two to four visible outcomes. Its terminating result carries `lottus_design_question` details. A host persists the result and submits a later answer as a new user run; Core never waits for the answer.
 
-When supplied an execution adapter, the same extension registers `framer_docs`, `framer_exec`, and `framer_apply_changes`. Supplying a scratch-file adapter additionally registers the canonical `framer_read_code_file`, `framer_create_code_file`, `framer_update_code_file`, and `framer_check_code_file` lifecycle. Core owns filename/source validation, optimistic-concurrency snapshots, generated Framer scripts, normalized exports and diagnostics, expected-export checks, and session-local mutation/publication state. Hosts own command execution and scratch filesystem policy.
+When supplied an execution adapter, the same extension registers `framer_docs`, `framer_exec`, `framer_apply_changes`, and the evidence-gated `finish_framer_work` completion tool. Supplying a scratch-file adapter additionally registers the canonical `framer_read_code_file`, `framer_create_code_file`, `framer_update_code_file`, and `framer_check_code_file` lifecycle. Core owns filename/source validation, optimistic-concurrency snapshots, generated Framer scripts, normalized exports and diagnostics, expected-export checks, derived review status, structured completion, and session-local mutation/publication state. Hosts own command execution, scratch filesystem policy, and presentation of the stable `lottus_framer_completion` details.
 
 ## Scope and licensing
 

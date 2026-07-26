@@ -40,6 +40,7 @@ describe("Framer canvas Core conformance", () => {
     const { tools } = harness();
     expect([...tools.keys()].sort()).toEqual([
       "ask_user",
+      "finish_framer_work",
       "framer_apply_changes",
       "framer_docs",
       "framer_exec",
