@@ -3,7 +3,7 @@ import path from "node:path";
 import { CORE_GUIDANCE_AGENTS, CORE_GUIDANCE_SYSTEM } from "./guidance-instructions.js";
 
 export const FRAMER_GUIDANCE_SCHEMA_VERSION = 3;
-export const FRAMER_GUIDANCE_COMPILER_VERSION = "3.0.0";
+export const FRAMER_GUIDANCE_COMPILER_VERSION = "3.0.1";
 export const FRAMER_GUIDANCE_AGENTS_MARKER = "<!-- lottus-agents-v10 -->";
 
 export interface GuidanceSourceFile {

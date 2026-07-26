@@ -76,6 +76,8 @@ describe("compileFramerGuidance public seam", () => {
     });
     expect(result.system).toContain("Ask every unresolved design decision directly through `ask_user`");
     expect(result.system).toContain("## Local version history");
+    expect(result.agents).toContain("never pass a directory");
+    expect(result.agents).not.toContain("strategy/*.md");
     expect(result.agents).toContain("## Files");
     expect(result.manifest.materials).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "desktop:git-policy", provenance: "host-supplied", redistribution: "runtime-only" }),

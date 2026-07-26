@@ -24,10 +24,10 @@ Connected through \`@framer/agent\` {{FRAMER_AGENT_VERSION}}. Read narrow routes
 
 ## Task router
 
-Read the smallest matching runtime-generated reference set under \`.lottus/framer/reference/\`:
+Read the smallest matching runtime-generated reference set under \`.lottus/framer/reference/\`. Always pass \`read\` an exact \`.md\` file path; never pass a directory or try to read a wildcard path.
 
 - Inspect or audit: \`tools/inspect.md\`.
-- Create or edit canvas content: \`tools/apply.md\`, the matching \`strategy/*.md\`, and only the relevant \`dsl/*.md\`, \`project/*.md\`, and \`principles/*.md\` shards.
+- Create or edit canvas content: \`tools/apply.md\`; choose exactly one of \`strategy/creation.md\`, \`strategy/edit.md\`, \`strategy/recreation.md\`, or \`strategy/planning.md\`; then read only the exact relevant files under \`dsl/\`, \`project/\`, and \`principles/\`.
 - Code components: \`code/authoring.md\` and only the individual \`code/controls/<name>.md\` files used.
 - Images, project data, publish, or limitations: the matching file under \`tools/\` or \`limitations.md\`.
 - Delegation to Framer's own agent, only when explicitly requested: \`start-conversation.md\`.
