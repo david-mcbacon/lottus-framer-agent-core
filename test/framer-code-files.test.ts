@@ -18,6 +18,7 @@ function harness() {
   const createCalls: unknown[][] = [];
   let snapshotCounter = 0;
   const framer = {
+    async getCodeFiles() { return [...remote.values()]; },
     async getCodeFile(name: string) {
       const file = remote.get(name);
       if (!file) throw new Error("missing");
@@ -85,13 +86,33 @@ describe("Framer code-file Core conformance", () => {
       "framer_create_code_file",
       "framer_docs",
       "framer_exec",
+      "framer_flatten_component",
       "framer_get_guides",
+      "framer_list_code_files",
+      "framer_make_component_local",
       "framer_publish",
+      "framer_query_analytics",
       "framer_read_code_file",
+      "framer_read_controls",
+      "framer_replace_text",
+      "framer_search_code_files",
       "framer_search_fonts",
       "framer_update_code_file",
       "framer_verify_mutation",
     ]);
+  });
+
+  it("lists metadata and searches bounded source before exact reads", async () => {
+    const h = harness();
+    h.local.set("source.tsx", "export default function Card(){ return <div>Needle value</div> }");
+    await execute(h, "framer_create_code_file", componentInput("source.tsx"));
+    const listed = await execute(h, "framer_list_code_files", {});
+    expect(listed.details.discovery.files).toMatchObject([{ name: "Card.tsx", byteSize: 64 }]);
+    expect(JSON.stringify(listed.details.discovery)).not.toContain("Needle value");
+    const searched = await execute(h, "framer_search_code_files", { query: "Needle", maxMatches: 5, contextChars: 10 });
+    expect(searched.details.discovery).toMatchObject({ filesScanned: 1, matches: [{ name: "Card.tsx" }] });
+    expect(searched.details.discovery.matches[0].snippet.length).toBeLessThanOrEqual(26);
+    await expect(execute(h, "framer_search_code_files", { query: " ../x", maxMatches: 5 })).rejects.toThrow("exact text");
   });
 
   it("creates source unchanged and records complete clean verification", async () => {

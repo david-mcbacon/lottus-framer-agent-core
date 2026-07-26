@@ -55,7 +55,10 @@ describe("public upstream compatibility seam", () => {
   }
 
   it("records package, API, schema, prompt sections, and every required method", () => {
-    const publicApi = { agent: { applyChanges() {} }, createCodeFile() {}, getCodeFile() {} };
+    const publicApi = { agent: {
+      applyChanges() {}, flattenComponentInstance() {}, makeExternalComponentLocal() {}, queryAnalytics() {},
+      readComponentControls() {}, readIconSetControls() {}, readIcons() {}, readLayoutTemplateControls() {}, readShaderControls() {}, replaceText() {},
+    }, createCodeFile() {}, getCodeFile() {}, getCodeFiles() {} };
     const record = inspectFramerCompatibility({
       packageVersion: "0.0.38",
       framerApiVersion: "2026.07",

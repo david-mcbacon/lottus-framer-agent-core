@@ -90,13 +90,19 @@ try {
     import * as testing from "@lottus-agent/framer-core/testing";
 
     const tools = testing.captureExtensionTools(pi.createFramerAgentCoreExtension({ createQuestionId: () => "packed" }));
+    const executionAdapter = { docs: async () => ({ visibleOutput: "docs" }), execute: async () => ({ visibleOutput: "", rawOutput: "" }) };
+    const runtimeTools = testing.captureExtensionTools(pi.createFramerAgentCoreExtension({
+      executionAdapter,
+      scratchAdapter: { readSource: async () => "", writeSnapshot: async () => "snapshot.tsx" },
+    }));
     const compiled = guidance.compileFramerGuidance({
       framerAgentVersion: "test",
       projectId: "p",
       sessionId: "s",
       upstreamBundle: { files: [{ path: "unknown.md", content: "# Runtime only" }] },
     });
-    if (!root.createFramerAgentCoreExtension || !contracts.askUserSchema || !pi.createAskUserExtension || !guidance.CORE_GUIDANCE_SYSTEM || !testing.requireCapturedTool || !compiled.manifest.fallback || !tools.has("ask_user")) process.exit(1);
+    const requiredRuntimeTools = ["framer_read_controls", "framer_replace_text", "framer_query_analytics", "framer_flatten_component", "framer_make_component_local", "framer_list_code_files", "framer_search_code_files", "framer_read_code_file", "framer_update_code_file"];
+    if (!root.createFramerOperationsExtension || !root.MAX_CODE_DISCOVERY_FILES || !contracts.askUserSchema || !pi.createAskUserExtension || !guidance.CORE_GUIDANCE_SYSTEM || !testing.requireCapturedTool || !compiled.manifest.fallback || !tools.has("ask_user") || requiredRuntimeTools.some((name) => !runtimeTools.has(name))) process.exit(1);
 
     const packageEntry = await realpath(fileURLToPath(import.meta.resolve("@lottus-agent/framer-core")));
     const packageRoot = dirname(dirname(packageEntry));

@@ -3,6 +3,7 @@ import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-a
 import { createFramerCanvasExtension, type FramerExecutionAdapter } from "./framer-canvas.js";
 import { createFramerCodeFilesExtension, type FramerScratchFileAdapter } from "./framer-code-files.js";
 import { createFramerCompletionExtension } from "./framer-completion.js";
+import { createFramerOperationsExtension } from "./framer-operations.js";
 import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
 import { createFramerVisualExtension, type FramerVisualAdapter } from "./framer-visual.js";
 import {
@@ -92,6 +93,7 @@ export function createFramerAgentCoreExtension(
     const state = createFramerRunState();
     options.onSessionStateCreated?.(state);
     createFramerCanvasExtension(options.executionAdapter, { state })(pi);
+    createFramerOperationsExtension(options.executionAdapter, state)(pi);
     if (options.visualAdapter) createFramerVisualExtension(options.visualAdapter, state)(pi);
     if (options.scratchAdapter) {
       createFramerCodeFilesExtension({

@@ -47,7 +47,7 @@
     "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:conformance": "vitest run test/ask-user.test.ts test/framer-canvas.test.ts test/framer-code-files.test.ts test/framer-completion.test.ts",
+    "test:conformance": "vitest run test/ask-user.test.ts test/framer-canvas.test.ts test/framer-code-files.test.ts test/framer-completion.test.ts test/framer-operations.test.ts",
     "test:guidance": "vitest run test/framer-guidance.test.ts",
     "test:pack": "node scripts/test-pack.mjs",
     "verify": "pnpm typecheck && pnpm test && pnpm test:pack",

@@ -1,8 +1,18 @@
 export const SUPPORTED_FRAMER_AGENT_VERSIONS = ["0.0.38"] as const;
 export const REQUIRED_FRAMER_PUBLIC_METHODS = [
   "framer.agent.applyChanges",
+  "framer.agent.flattenComponentInstance",
+  "framer.agent.makeExternalComponentLocal",
+  "framer.agent.queryAnalytics",
+  "framer.agent.readComponentControls",
+  "framer.agent.readIconSetControls",
+  "framer.agent.readIcons",
+  "framer.agent.readLayoutTemplateControls",
+  "framer.agent.readShaderControls",
+  "framer.agent.replaceText",
   "framer.createCodeFile",
   "framer.getCodeFile",
+  "framer.getCodeFiles",
 ] as const;
 
 export type FramerPublicMethod = (typeof REQUIRED_FRAMER_PUBLIC_METHODS)[number];

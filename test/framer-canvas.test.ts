@@ -46,8 +46,13 @@ describe("Framer canvas Core conformance", () => {
       "framer_apply_changes",
       "framer_docs",
       "framer_exec",
+      "framer_flatten_component",
       "framer_get_guides",
+      "framer_make_component_local",
       "framer_publish",
+      "framer_query_analytics",
+      "framer_read_controls",
+      "framer_replace_text",
       "framer_search_fonts",
       "framer_verify_mutation",
     ]);
@@ -167,9 +172,8 @@ describe("Framer canvas Core conformance", () => {
     const h = harness();
     const exec = requireCapturedTool(h.tools, "framer_exec");
     await expect(exec.execute("publish", { source: "await framer.agent.publish({action: 'preview'})", purpose: "Publish", effect: "read" } as never)).rejects.toThrow("framer_publish");
-    await exec.execute("mislabeled", { source: "await framer.agent.replaceText({})", purpose: "Replace", effect: "read" } as never);
-    expect(h.state.genericMutationVersion).toBe(1);
-    await expect(requireCapturedTool(h.tools, "finish_framer_work").execute("finish", { summary: "Done", visibleChanges: [], unresolvedIssues: [] } as never)).rejects.toThrow("known mutation");
+    await expect(exec.execute("mislabeled", { source: "await framer.agent.replaceText({})", purpose: "Replace", effect: "read" } as never)).rejects.toThrow("typed Framer operation");
+    expect(h.state.genericMutationVersion).toBe(0);
   });
 
   it("uses adapter observation over model intent and handles advanced operations conservatively", async () => {

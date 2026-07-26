@@ -40,8 +40,10 @@ export interface FramerCanvasExtensionOptions {
 }
 
 function invokesCodeFileLifecycle(source: string): boolean {
-  return /\bframer\s*\.\s*(?:createCodeFile|getCodeFile)\s*\(|\bsetFileContent\s*\(|\bCodeFile\s*\.\s*remove\s*\(/u.test(source);
+  return /\bframer\s*\.\s*(?:createCodeFile|getCodeFile|getCodeFiles)\s*\(|\bsetFileContent\s*\(|\bCodeFile\s*\.\s*remove\s*\(/u.test(source);
 }
+
+const DEDICATED_OPERATION = /\b(?:replaceText|flattenComponentInstance|makeExternalComponentLocal|queryAnalytics|readComponentControls|readIconSetControls|readIcons|readLayoutTemplateControls|readShaderControls)\s*\(/u;
 
 const KNOWN_MUTATOR = /\b(?:replaceText|flattenComponentInstance|makeExternalComponentLocal|set[A-Z][A-Za-z0-9_$]*|create[A-Z][A-Za-z0-9_$]*|update[A-Z][A-Za-z0-9_$]*|remove)\s*\(/u;
 const KNOWN_READ = /\b(?:readProject|queryImages|queryAnalytics|read[A-Z][A-Za-z0-9_$]*|get[A-Z][A-Za-z0-9_$]*|serialize(?:Nodes)?|paginate)\s*\(/u;
@@ -166,6 +168,9 @@ export function createFramerCanvasExtension(
         }
         if (/\bapplyChanges\s*\(/u.test(input.source)) {
           throw new Error("Use framer_apply_changes for canvas DSL mutations.");
+        }
+        if (DEDICATED_OPERATION.test(input.source)) {
+          throw new Error("Use the matching typed Framer operation instead of generic execution.");
         }
         if (/\bpublish\s*\(/u.test(input.source) || input.effect === "publish") {
           throw new Error("Use framer_publish for preview, confirmed publishing, and production deployment.");

@@ -11,6 +11,7 @@ import {
 } from "./framer-run-state.js";
 
 export const MAX_CODE_FILE_SOURCE_BYTES = 200_000;
+export const MAX_CODE_DISCOVERY_FILES = 100;
 export const FRAMER_CODE_FILE_DETAILS_TYPE = "lottus_framer_code_file" as const;
 const CODE_FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.(?:tsx?|jsx?)$/u;
 const MAX_VISIBLE_EVIDENCE_BYTES = 50_000;
@@ -136,6 +137,13 @@ function extractCodeFileEvidence(output: string): CodeFileEvidence {
   return parseCodeFileEvidence(value);
 }
 
+function extractDiscoveryEvidence(output: string): unknown {
+  const marked = output.split(/\r?\n/u).filter((line) => line.startsWith(FRAMER_RESULT_PREFIX));
+  if (marked.length !== 1) throw new Error("Framer code discovery returned invalid structured evidence");
+  try { return JSON.parse(marked[0]!.slice(FRAMER_RESULT_PREFIX.length)); }
+  catch { throw new Error("Framer code discovery returned malformed structured evidence"); }
+}
+
 function relayHelpers(): string {
   return `
 const __lottusNormalizeExports = (items) => Array.isArray(items) ? items.map((item) => ({
@@ -189,6 +197,30 @@ try { file = await framer.getCodeFile(${JSON.stringify(name)}); } catch {}
 if (!file) __lottusEmit({ kind: "not_found", mutated: false, verificationComplete: false, exports: [], diagnostics: [] });
 else if (file.content !== ${JSON.stringify(expectedContent)}) __lottusEmit({ kind: "conflict", mutated: false, verificationComplete: false, exports: [], diagnostics: [] });
 else __lottusEmit(await __lottusInspect(await file.setFileContent(${JSON.stringify(source)}), true));`;
+}
+
+function discoveryScript(search?: { query: string; maxMatches: number; contextChars: number }): string {
+  return `const files = await framer.getCodeFiles();
+const boundedFiles = (Array.isArray(files) ? files : []).slice(0, ${MAX_CODE_DISCOVERY_FILES});
+const normalized = boundedFiles.map((file) => ({
+  name: typeof file?.name === "string" ? file.name : undefined,
+  path: typeof file?.path === "string" ? file.path : undefined,
+  byteSize: typeof file?.content === "string" ? new TextEncoder().encode(file.content).length : undefined,
+  exports: __lottusNormalizeExports(file?.exports).slice(0, 20),
+})).filter((file) => typeof file.name === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\.(?:tsx?|jsx?)$/.test(file.name));
+${search ? `const needle = ${JSON.stringify(search.query.toLocaleLowerCase())};
+const matches = [];
+for (const file of boundedFiles) {
+  if (typeof file?.name !== "string" || typeof file?.content !== "string" || new TextEncoder().encode(file.content).length > ${MAX_CODE_FILE_SOURCE_BYTES}) continue;
+  const lower = file.content.toLocaleLowerCase(); let offset = 0;
+  while (matches.length < ${search.maxMatches} && (offset = lower.indexOf(needle, offset)) !== -1) {
+    const start = Math.max(0, offset - ${search.contextChars}); const end = Math.min(file.content.length, offset + needle.length + ${search.contextChars});
+    matches.push({ name: file.name, offset, snippet: file.content.slice(start, end) }); offset += Math.max(1, needle.length);
+  }
+  if (matches.length >= ${search.maxMatches}) break;
+}
+__lottusEmit({ filesScanned: normalized.length, matches, truncated: matches.length === ${search.maxMatches} || (Array.isArray(files) && files.length > ${MAX_CODE_DISCOVERY_FILES}) });`
+    : `__lottusEmit({ files: normalized, truncated: Array.isArray(files) && files.length > ${MAX_CODE_DISCOVERY_FILES} });`}`;
 }
 
 function sha256(content: string): string {
@@ -263,6 +295,37 @@ export function createFramerCodeFilesExtension(input: {
       if (evidence.kind !== "ok" || typeof evidence.content !== "string") throw new Error("Framer code-file evidence did not include complete source content");
       return evidence.content;
     };
+
+    const discover = async (source: string, signal: AbortSignal | undefined, workspaceRoot: string) => {
+      const execution = await input.executionAdapter.execute(`${relayHelpers()}\n${source}`, {
+        ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot,
+      });
+      return { execution, evidence: extractDiscoveryEvidence(execution.rawOutput) };
+    };
+
+    pi.registerTool({
+      name: "framer_list_code_files", label: "List Framer Code Files",
+      description: "List bounded Framer Project code-file metadata without requiring a known filename or returning source.",
+      parameters: Type.Object({}, { additionalProperties: false }),
+      async execute(_id, _params, signal, _update, ctx) {
+        const { execution, evidence } = await discover(discoveryScript(), signal, ctx?.cwd ?? process.cwd());
+        const details = { type: FRAMER_CODE_FILE_DETAILS_TYPE, status: "ok" as const, mutationSucceeded: false, discovery: evidence, ...execution.details };
+        return { content: [{ type: "text" as const, text: JSON.stringify(details) }], details };
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_search_code_files", label: "Search Framer Code Files",
+      description: "Search bounded source snippets across Framer Project code files. Use exact read before editing a discovered file.",
+      parameters: Type.Object({ query: Type.String({ minLength: 2, maxLength: 200 }), maxMatches: Type.Integer({ minimum: 1, maximum: 50 }), contextChars: Type.Optional(Type.Integer({ minimum: 0, maximum: 200 })) }, { additionalProperties: false }),
+      async execute(_id, params, signal, _update, ctx) {
+        const query = params.query.trim();
+        if (query !== params.query || /[\u0000-\u001f\u007f]/u.test(query)) throw new Error("Code search query must be exact text without surrounding whitespace or control characters");
+        const { execution, evidence } = await discover(discoveryScript({ query, maxMatches: params.maxMatches, contextChars: params.contextChars ?? 80 }), signal, ctx?.cwd ?? process.cwd());
+        const details = { type: FRAMER_CODE_FILE_DETAILS_TYPE, status: "ok" as const, mutationSucceeded: false, discovery: evidence, ...execution.details };
+        return { content: [{ type: "text" as const, text: JSON.stringify(details) }], details };
+      },
+    });
 
     pi.registerTool({
       name: "framer_read_code_file", label: "Read Framer Code File",

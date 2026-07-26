@@ -26,6 +26,7 @@ export {
   FRAMER_RESULT_PREFIX,
   createFramerCanvasExtension,
 } from "./framer-canvas.js";
+export { FRAMER_OPERATION_DETAILS_TYPE, createFramerOperationsExtension } from "./framer-operations.js";
 export type {
   FramerCanvasExtensionOptions,
   FramerExecutionAdapter,
@@ -44,6 +45,7 @@ export type {
 } from "./canvas-evidence.js";
 export {
   FRAMER_CODE_FILE_DETAILS_TYPE,
+  MAX_CODE_DISCOVERY_FILES,
   MAX_CODE_FILE_SOURCE_BYTES,
   createFramerCodeFilesExtension,
   parseCodeFileEvidence,
