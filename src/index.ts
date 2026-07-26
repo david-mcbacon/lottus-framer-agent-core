@@ -80,4 +80,28 @@ export type {
 } from "./framer-guidance.js";
 export { CORE_GUIDANCE_AGENTS, CORE_GUIDANCE_SYSTEM } from "./guidance-instructions.js";
 export { createAskUserExtension, createFramerAgentCoreExtension } from "./pi.js";
-export type { AskUserExtensionOptions, FramerAgentCoreExtensionOptions } from "./pi.js";
+export type { AskUserExtensionOptions, FramerAgentCoreExtensionOptions, FramerModelCapabilityProfile } from "./pi.js";
+export {
+  METRIC_UNAVAILABLE,
+  createPromptPrefixGuard,
+  createPromptRunBaseline,
+} from "./baseline.js";
+export type {
+  Measured,
+  PromptPrefixAssertion,
+  PromptRunBaseline,
+  PromptRunBaselineInput,
+  PromptRunMeasurements,
+  PromptRunOutcome,
+  PromptTranscriptEntry,
+} from "./baseline.js";
+export {
+  REQUIRED_FRAMER_PUBLIC_METHODS,
+  SUPPORTED_FRAMER_AGENT_VERSIONS,
+  inspectFramerCompatibility,
+} from "./compatibility.js";
+export type {
+  FramerCompatibilityInput,
+  FramerCompatibilityRecord,
+  FramerPublicMethod,
+} from "./compatibility.js";

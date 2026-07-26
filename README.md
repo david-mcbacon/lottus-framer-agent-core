@@ -18,6 +18,8 @@ The host must provide the peer dependencies. This release is certified against e
 - `@lottus-agent/framer-core/guidance` — deterministic Guidance compilation and Lottus-owned base instructions.
 - `@lottus-agent/framer-core/testing` — public extension capture utilities for conformance tests.
 
+Prompt Run efficiency, immutable-prefix, upstream compatibility, and model capability-profile baselines are documented in [`docs/baseline.md`](./docs/baseline.md).
+
 ```ts
 import {
   createFramerAgentCoreExtension,

@@ -71,14 +71,21 @@ export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions
   readonly executionAdapter?: FramerExecutionAdapter;
   readonly scratchAdapter?: FramerScratchFileAdapter;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
+  readonly capabilityProfile?: FramerModelCapabilityProfile;
+}
+
+export interface FramerModelCapabilityProfile {
+  readonly structuredDesignQuestions?: boolean;
 }
 
 export function createFramerAgentCoreExtension(
   options: FramerAgentCoreExtensionOptions = {},
 ): ExtensionFactory {
-  const askUser = createAskUserExtension(options);
+  const askUser = options.capabilityProfile?.structuredDesignQuestions === false
+    ? undefined
+    : createAskUserExtension(options);
   return (pi) => {
-    askUser(pi);
+    askUser?.(pi);
     if (!options.executionAdapter) return;
     const state = createFramerRunState();
     options.onSessionStateCreated?.(state);
