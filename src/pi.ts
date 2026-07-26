@@ -13,6 +13,7 @@ import {
   type DesignQuestionDetails,
   validateAskUserInput,
 } from "./contracts.js";
+import { createPromptRunSteeringExtension, type FramerSteeringProfile, type LiveFramerContextProvider } from "./prompt-run.js";
 
 export interface AskUserExtensionOptions {
   readonly createQuestionId?: () => string;
@@ -75,9 +76,10 @@ export interface FramerAgentCoreExtensionOptions extends AskUserExtensionOptions
   readonly visualAdapter?: FramerVisualAdapter;
   readonly onSessionStateCreated?: (state: FramerRunState) => void;
   readonly capabilityProfile?: FramerModelCapabilityProfile;
+  readonly liveContextProvider?: LiveFramerContextProvider;
 }
 
-export interface FramerModelCapabilityProfile {
+export interface FramerModelCapabilityProfile extends FramerSteeringProfile {
   readonly structuredDesignQuestions?: boolean;
 }
 
@@ -88,6 +90,10 @@ export function createFramerAgentCoreExtension(
     ? undefined
     : createAskUserExtension(options);
   return (pi) => {
+    if (options.liveContextProvider) createPromptRunSteeringExtension({
+      liveContextProvider: options.liveContextProvider,
+      ...(options.capabilityProfile ? { profile: options.capabilityProfile } : {}),
+    })(pi);
     askUser?.(pi);
     if (!options.executionAdapter) return;
     const state = createFramerRunState();

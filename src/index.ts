@@ -92,6 +92,8 @@ export {
   createPromptPrefixGuard,
   createPromptRunBaseline,
 } from "./baseline.js";
+export { LOTTUS_WORKING_SCOPE_GUIDANCE, createPromptRunSteeringExtension, evaluateProfileEfficiency, renderLiveFramerContext } from "./prompt-run.js";
+export type { DesignPlan, DesignPlanItem, FramerSteeringProfile, FramerWorkStrategy, LiveFramerContext, LiveFramerContextProvider } from "./prompt-run.js";
 export type {
   Measured,
   PromptPrefixAssertion,
