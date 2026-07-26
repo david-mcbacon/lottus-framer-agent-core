@@ -713,4 +713,3 @@ export function compileFramerGuidance(input: CompileFramerGuidanceInput): Compil
   };
   return { system, agents, files: generatedFiles, manifest, contentHash };
 }
-
