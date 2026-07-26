@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPromptRunBaseline, createPromptRunSteeringExtension, evaluateProfileEfficiency, renderLiveFramerContext } from "../src/index.js";
+import { createPromptRunBaseline, createPromptRunSteeringExtension, evaluateProfileEfficiency, renderLiveFramerContext, requiresDesignPlan } from "../src/index.js";
 
 describe("Prompt Run context and steering", () => {
   it("refreshes selection each run and appends it after the stable prefix", async () => {
@@ -14,6 +14,12 @@ describe("Prompt Run context and steering", () => {
   it("represents unavailable canvas context and rejects lifecycle state", () => {
     expect(renderLiveFramerContext({ observedAt: "2026-07-27T00:00:00Z", availability: "unavailable", unavailableReason: "Desktop cannot observe canvas selection" })).toContain("unavailable");
     expect(() => renderLiveFramerContext({ observedAt: "2026-07-27T00:00:00Z", availability: "available", ...({ sessionId: "secret" } as any) })).toThrow("forbidden");
+  });
+
+  it("requires plans for substantial work but not narrow copy or property edits", () => {
+    expect(requiresDesignPlan("Create a responsive landing page")).toBe(true);
+    expect(requiresDesignPlan("Change the button label to Join")).toBe(false);
+    expect(requiresDesignPlan("Set card radius to 12")).toBe(false);
   });
 
   it("isolates optional work items and validates dependencies and evidence", async () => {

@@ -54,6 +54,14 @@ export const LOTTUS_WORKING_SCOPE_GUIDANCE = `## Working scope
 - If a requested new page name collides with an existing page, ask a Design Question before changing either page.
 - Newer Live Framer Context always overrides Generated Project Inventory.`;
 
+export function requiresDesignPlan(prompt: string): boolean {
+  const normalized = prompt.toLowerCase();
+  if (/\b(copy|text|label|title|color|radius|opacity)\b/u.test(normalized)
+    && /\b(change|update|replace|set|fix)\b/u.test(normalized)
+    && !/\b(page|site|responsive|breakpoint|recreate|create|redesign|structure|layout)\b/u.test(normalized)) return false;
+  return /\b(create|build|design|redesign|recreate|rebuild|responsive|breakpoint|page|site|structure|layout|section)\b/u.test(normalized);
+}
+
 export function renderLiveFramerContext(context: LiveFramerContext): string {
   validateLiveContext(context);
   const lines = ["## Live Framer Context", "", `- Observed at: ${context.observedAt}`, `- Rich canvas context: ${context.availability}`];
@@ -117,7 +125,10 @@ export function createPromptRunSteeringExtension(options: {
     const completed = new Set<string>();
     pi.on("before_agent_start", async (event, context) => {
       const live = await options.liveContextProvider.getLiveContext({ prompt: event.prompt, workspaceRoot: context.cwd });
-      return { systemPrompt: `${event.systemPrompt}\n\n${LOTTUS_WORKING_SCOPE_GUIDANCE}\n\n${renderLiveFramerContext(live)}` };
+      const planRequirement = profile.designPlans !== false && requiresDesignPlan(event.prompt)
+        ? "\n\nThis substantial request requires record_design_plan before implementation. Completion comes from structured implementation and verification evidence, never summary prose."
+        : "";
+      return { systemPrompt: `${event.systemPrompt}\n\n${LOTTUS_WORKING_SCOPE_GUIDANCE}${planRequirement}\n\n${renderLiveFramerContext(live)}` };
     });
     if (profile.designPlans !== false) pi.registerTool({
       name: "record_design_plan", label: "Record Design Plan",
