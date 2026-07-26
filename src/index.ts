@@ -29,6 +29,7 @@ export type {
   FramerCanvasExtensionOptions,
   FramerExecutionAdapter,
   FramerExecutionResult,
+  FramerObservedEffect,
   FramerRenderedOutput,
 } from "./framer-canvas.js";
 export {

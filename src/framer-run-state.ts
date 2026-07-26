@@ -18,7 +18,12 @@ export interface FramerRunState {
   canvasEvidenceStatus: CanvasEvidenceStatus;
   canvasDiagnostics: CanvasDiagnostic[];
   codeFiles: Map<string, CodeFileRunState>;
+  genericMutationVersion: number;
+  genericEvidenceVersion: number;
+  genericVerificationAction?: string;
   published: boolean;
+  publicationTarget?: "branch" | "staging" | "production";
+  publicationPreviewHash?: string;
 }
 
 export function createFramerRunState(): FramerRunState {
@@ -28,6 +33,8 @@ export function createFramerRunState(): FramerRunState {
     canvasEvidenceStatus: "incomplete",
     canvasDiagnostics: [],
     codeFiles: new Map(),
+    genericMutationVersion: 0,
+    genericEvidenceVersion: 0,
     published: false,
   };
 }
@@ -35,7 +42,8 @@ export function createFramerRunState(): FramerRunState {
 export function derivedReviewStatus(state: FramerRunState): FramerReviewStatus {
   const codeStates = [...state.codeFiles.values()];
   const mutated = state.canvasMutationVersion > 0
-    || codeStates.some((item) => item.mutationVersion > 0);
+    || codeStates.some((item) => item.mutationVersion > 0)
+    || state.genericMutationVersion > 0;
   if (!mutated) return "not_needed";
 
   const issues = (
@@ -53,6 +61,11 @@ export function incompleteReviewReason(state: FramerRunState): string | undefine
     || (state.canvasMutationVersion > 0 && state.canvasEvidenceStatus === "incomplete")
   ) {
     return "obtain complete diagnostics for the latest canvas mutation with framer_apply_changes";
+  }
+
+  if (state.genericMutationVersion > state.genericEvidenceVersion) {
+    return state.genericVerificationAction
+      ?? "verify or correct the latest generic Framer mutation with a typed Core operation";
   }
 
   const pending = [...state.codeFiles.entries()]

@@ -13,13 +13,14 @@ Connected through \`@framer/agent\` {{FRAMER_AGENT_VERSION}}. Read narrow routes
 ## Runtime contract
 
 - Use only first-party Framer Control Tools for authenticated Framer work. Never invoke \`agent\` through Bash or run setup, authorization, relay, or session lifecycle commands.
-- \`framer_exec\` injects the Live Framer Session automatically. Supply JavaScript, a short purpose, and an honest effect classification; never supply or seek a session ID. Never use it for code-file lifecycle calls.
+- \`framer_exec\` injects the Live Framer Session automatically. Supply JavaScript, a short purpose, and an honest effect classification; never supply or seek a session ID. Never use it for code-file lifecycle or publication calls. Generic mutations require adapter-observed read verification through \`framer_verify_mutation\` before completion.
+- Publish only through \`framer_publish\`: preview first, confirm the current hash, and use staging-version promotion only when supported. Preview never means published.
 - Reuse relay \`state\` for useful repeated reads. Read the smallest live scope before editing. Inventory files are snapshots; confirm mutable IDs and names live.
 - Prefer \`framer.agent.*\`. Use \`framer_docs\` only for one exact unfamiliar symbol absent from routed references; never submit natural-language catalog queries.
 - Use \`framer_apply_changes\` as the sole canvas DSL mutation path. Inspect its result immediately, use canonical renamed IDs, and fix meaningful diagnostics before unrelated work.
 - For code files, use \`framer_read_code_file\`, scoped \`read\`/\`write\`/\`edit\`, \`framer_create_code_file\` or \`framer_update_code_file\`, and \`framer_check_code_file\` after corrections.
 - Ask unresolved visible design decisions with \`ask_user\`, one resumable question at a time. Stop after asking; the host resumes work in a later run after the designer answers.
-- End completed work with \`finish_framer_work\`. It derives status and blocks only while the latest canvas or code mutation lacks complete evidence.
+- End completed work with \`finish_framer_work\`. It derives status and blocks while the latest canvas, code, or generic mutation lacks complete evidence.
 - Preserve manual edits and scope. Do not publish, delete, broadly replace, or undo unrelated work unless requested. Publishing must be explicitly requested.
 
 ## Task router

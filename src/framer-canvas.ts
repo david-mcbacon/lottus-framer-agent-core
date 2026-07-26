@@ -13,6 +13,14 @@ export interface FramerRenderedOutput {
 
 export interface FramerExecutionResult extends FramerRenderedOutput {
   readonly rawOutput: string;
+  readonly observedEffect?: FramerObservedEffect;
+}
+
+export interface FramerObservedEffect {
+  readonly kind: "read" | "mutation" | "publication" | "unknown";
+  readonly succeeded: boolean;
+  readonly verificationAction?: string;
+  readonly publicationTarget?: "branch" | "staging" | "production";
 }
 
 export interface FramerExecutionAdapter {
@@ -27,6 +35,18 @@ export interface FramerCanvasExtensionOptions {
 
 function invokesCodeFileLifecycle(source: string): boolean {
   return /\bframer\s*\.\s*(?:createCodeFile|getCodeFile)\s*\(|\bsetFileContent\s*\(|\bCodeFile\s*\.\s*remove\s*\(/u.test(source);
+}
+
+const KNOWN_MUTATOR = /\b(?:replaceText|flattenComponentInstance|makeExternalComponentLocal|set[A-Z][A-Za-z0-9_$]*|create[A-Z][A-Za-z0-9_$]*|update[A-Z][A-Za-z0-9_$]*|remove)\s*\(/u;
+const KNOWN_READ = /\b(?:readProject|queryImages|queryAnalytics|read[A-Z][A-Za-z0-9_$]*|get[A-Z][A-Za-z0-9_$]*|serialize(?:Nodes)?|paginate)\s*\(/u;
+
+function genericMutationReason(source: string, declared: string, observed?: FramerObservedEffect): string | undefined {
+  if (observed?.kind === "mutation") return observed.verificationAction ?? "verify the adapter-observed mutation with the matching typed Core operation";
+  if (KNOWN_MUTATOR.test(source)) return "repeat and verify the known mutation with the matching typed Core operation";
+  if (declared === "mutate") return "verify the declared mutation with the matching typed Core operation";
+  if (observed?.kind === "read") return undefined;
+  if (declared === "read" && KNOWN_READ.test(source)) return undefined;
+  return "classify and verify the advanced operation with a typed Core operation before completion";
 }
 
 function isExactDocsSymbol(query: string): boolean {
@@ -84,13 +104,84 @@ export function createFramerCanvasExtension(
         if (/\bapplyChanges\s*\(/u.test(input.source)) {
           throw new Error("Use framer_apply_changes for canvas DSL mutations.");
         }
+        if (/\bpublish\s*\(/u.test(input.source) || input.effect === "publish") {
+          throw new Error("Use framer_publish for preview, confirmed publishing, and production deployment.");
+        }
+        const declaredMutation = input.effect === "mutate" || KNOWN_MUTATOR.test(input.source)
+          || (input.effect !== "read" && !KNOWN_READ.test(input.source));
+        if (declaredMutation) {
+          state.genericMutationVersion += 1;
+          const reason = genericMutationReason(input.source, input.effect);
+          if (reason) state.genericVerificationAction = reason;
+        }
         const timeoutMs = /startConversation\s*\(/u.test(input.source) ? 600_000 : 120_000;
         const executed = await adapter.execute(input.source, { ...(signal ? { signal } : {}), timeoutMs, workspaceRoot: ctx?.cwd ?? process.cwd() });
-        if (input.effect === "publish" || /\.publish\s*\(/u.test(input.source)) state.published = true;
+        const reason = genericMutationReason(input.source, input.effect, executed.observedEffect);
+        if (reason && !declaredMutation) state.genericMutationVersion += 1;
+        if (reason) state.genericVerificationAction = reason;
         return {
           content: [{ type: "text" as const, text: executed.visibleOutput }],
-          details: { ...executed.details, effect: input.effect },
+          details: { ...executed.details, declaredEffect: input.effect, observedEffect: executed.observedEffect },
         };
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_publish",
+      label: "Framer Publish",
+      description: "Preview publication readiness, confirm the current preview hash, or promote a staging version to production.",
+      promptSnippet: "Preview before publishing; confirm only the latest hash",
+      parameters: Type.Union([
+        Type.Object({ action: Type.Literal("preview") }, { additionalProperties: false }),
+        Type.Object({ action: Type.Literal("confirm_publish"), confirmationHash: Type.String({ minLength: 1, maxLength: 500 }) }, { additionalProperties: false }),
+        Type.Object({ action: Type.Literal("deploy_to_production"), version: Type.String({ minLength: 1, maxLength: 500 }) }, { additionalProperties: false }),
+      ]),
+      executionMode: "sequential",
+      async execute(_id, input, signal, _update, ctx) {
+        if (input.action === "confirm_publish" && input.confirmationHash !== state.publicationPreviewHash) {
+          throw new Error("Publication confirmation is stale or was not previewed in this session; run framer_publish preview again.");
+        }
+        const source = `const result = await framer.agent.publish(${JSON.stringify(input)}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(result));`;
+        const executed = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        const result = extractStructuredResult(executed.rawOutput);
+        if (typeof result !== "object" || result === null) throw new Error("Framer publication returned invalid structured evidence.");
+        const record = result as Record<string, unknown>;
+        const errors = Array.isArray(record.errors) ? record.errors : [];
+        const failed = record.success === false || record.status === "failed" || record.status === "blocked" || errors.length > 0;
+        if (input.action === "preview") {
+          if (typeof record.confirmationHash === "string" && !failed) state.publicationPreviewHash = record.confirmationHash;
+          else delete state.publicationPreviewHash;
+        } else if (!failed && (record.success === true || record.status === "success" || record.status === "published" || record.status === "deployed")) {
+          state.published = true;
+          state.publicationTarget = input.action === "deploy_to_production"
+            ? "production"
+            : record.target === "branch" ? "branch" : record.target === "production" ? "production" : "staging";
+        }
+        return { content: [{ type: "text" as const, text: executed.visibleOutput }], details: { ...executed.details, action: input.action, result } };
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_verify_mutation",
+      label: "Verify Framer Mutation",
+      description: "Run a read-only verification for the latest generic mutation. Evidence advances only when the host observes a successful read.",
+      promptSnippet: "Verify the latest generic mutation with a focused read",
+      parameters: Type.Object({
+        mutationVersion: Type.Integer({ minimum: 1 }),
+        source: Type.String({ minLength: 1, maxLength: 200_000 }),
+        expected: Type.String({ minLength: 1, maxLength: 500 }),
+      }, { additionalProperties: false }),
+      executionMode: "sequential",
+      async execute(_id, input, signal, _update, ctx) {
+        if (input.mutationVersion !== state.genericMutationVersion) throw new Error("Generic mutation verification is stale; verify the latest mutation version.");
+        if (KNOWN_MUTATOR.test(input.source) || /\b(?:applyChanges|publish)\s*\(/u.test(input.source)) throw new Error("Generic mutation verification must be read-only.");
+        const executed = await adapter.execute(input.source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        if (executed.observedEffect?.kind !== "read" || !executed.observedEffect.succeeded) {
+          throw new Error("Completion evidence remains pending: the adapter did not observe a successful read-only verification.");
+        }
+        state.genericEvidenceVersion = state.genericMutationVersion;
+        delete state.genericVerificationAction;
+        return { content: [{ type: "text" as const, text: executed.visibleOutput }], details: { ...executed.details, expected: input.expected, mutationVersion: input.mutationVersion, observedEffect: executed.observedEffect } };
       },
     });
 

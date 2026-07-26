@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createFramerAgentCoreExtension,
   type FramerExecutionAdapter,
+  type FramerObservedEffect,
   type FramerRunState,
 } from "../src/index.js";
 import { captureExtensionTools, requireCapturedTool } from "../src/testing.js";
@@ -12,6 +13,7 @@ class FakeExecutionAdapter implements FramerExecutionAdapter {
   readonly docsCalls: string[] = [];
   readonly executions: Array<{ source: string; timeoutMs: number }> = [];
   nextOutput = "read result";
+  nextObservedEffect: FramerObservedEffect | undefined;
 
   async docs(symbol: string) {
     this.docsCalls.push(symbol);
@@ -20,7 +22,7 @@ class FakeExecutionAdapter implements FramerExecutionAdapter {
 
   async execute(source: string, options: { timeoutMs: number }) {
     this.executions.push({ source, timeoutMs: options.timeoutMs });
-    return { rawOutput: this.nextOutput, visibleOutput: this.nextOutput };
+    return { rawOutput: this.nextOutput, visibleOutput: this.nextOutput, ...(this.nextObservedEffect ? { observedEffect: this.nextObservedEffect } : {}) };
   }
 }
 
@@ -44,6 +46,8 @@ describe("Framer canvas Core conformance", () => {
       "framer_apply_changes",
       "framer_docs",
       "framer_exec",
+      "framer_publish",
+      "framer_verify_mutation",
     ]);
   });
 
@@ -73,7 +77,7 @@ describe("Framer canvas Core conformance", () => {
       { source: "console.log(await framer.getNodesWithAttribute('x'))", purpose: "Inspect", effect: "read" } as never,
       signal,
     );
-    expect(result).toMatchObject({ content: [{ text: "read result" }], details: { effect: "read" } });
+    expect(result).toMatchObject({ content: [{ text: "read result" }], details: { declaredEffect: "read" } });
     expect(adapter.executions[0]?.timeoutMs).toBe(120_000);
   });
 
@@ -132,6 +136,61 @@ describe("Framer canvas Core conformance", () => {
     }
   });
 
+  it("blocks generic publication and conservatively records generic mutations", async () => {
+    const h = harness();
+    const exec = requireCapturedTool(h.tools, "framer_exec");
+    await expect(exec.execute("publish", { source: "await framer.agent.publish({action: 'preview'})", purpose: "Publish", effect: "read" } as never)).rejects.toThrow("framer_publish");
+    await exec.execute("mislabeled", { source: "await framer.agent.replaceText({})", purpose: "Replace", effect: "read" } as never);
+    expect(h.state.genericMutationVersion).toBe(1);
+    await expect(requireCapturedTool(h.tools, "finish_framer_work").execute("finish", { summary: "Done", visibleChanges: [], unresolvedIssues: [] } as never)).rejects.toThrow("known mutation");
+  });
+
+  it("uses adapter observation over model intent and handles advanced operations conservatively", async () => {
+    const observed = harness();
+    observed.adapter.nextObservedEffect = { kind: "mutation", succeeded: false, verificationAction: "inspect external mutation failure" };
+    await requireCapturedTool(observed.tools, "framer_exec").execute("observed", { source: "console.log('claimed read')", purpose: "Read", effect: "read" } as never);
+    expect(observed.state.genericVerificationAction).toBe("inspect external mutation failure");
+    const verify = requireCapturedTool(observed.tools, "framer_verify_mutation");
+    await expect(verify.execute("failed", { mutationVersion: 1, source: "console.log('check')", expected: "changed" } as never)).rejects.toThrow("did not observe");
+    observed.adapter.nextObservedEffect = { kind: "read", succeeded: true };
+    await verify.execute("verified", { mutationVersion: 1, source: "console.log('check')", expected: "changed" } as never);
+    expect(observed.state.genericEvidenceVersion).toBe(1);
+
+    const unknown = harness();
+    await requireCapturedTool(unknown.tools, "framer_exec").execute("unknown", { source: "await framer.agent.experimental()", purpose: "Advanced", effect: "other" } as never);
+    expect(unknown.state.genericMutationVersion).toBe(1);
+  });
+
+  it("previews without publishing, rejects stale confirmation, and records structured targets", async () => {
+    const h = harness();
+    const publish = requireCapturedTool(h.tools, "framer_publish");
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "ready", confirmationHash: "current", changes: ["page"] })}`;
+    await publish.execute("preview", { action: "preview" } as never);
+    expect(h.state.published).toBe(false);
+    await expect(publish.execute("stale", { action: "confirm_publish", confirmationHash: "old" } as never)).rejects.toThrow("stale");
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "published", success: true, target: "staging" })}`;
+    await publish.execute("confirm", { action: "confirm_publish", confirmationHash: "current" } as never);
+    expect(h.state).toMatchObject({ published: true, publicationTarget: "staging" });
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "deployed", success: true })}`;
+    await publish.execute("production", { action: "deploy_to_production", version: "version-1" } as never);
+    expect(h.state.publicationTarget).toBe("production");
+  });
+
+  it("does not publish on blocking diagnostics or failed confirmation", async () => {
+    const h = harness();
+    const publish = requireCapturedTool(h.tools, "framer_publish");
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "blocked", confirmationHash: "bad", errors: [{ message: "broken" }] })}`;
+    await publish.execute("blocked", { action: "preview" } as never);
+    expect(h.state.published).toBe(false);
+    expect(h.state.publicationPreviewHash).toBeUndefined();
+
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "ready", confirmationHash: "valid" })}`;
+    await publish.execute("ready", { action: "preview" } as never);
+    h.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "failed", success: false })}`;
+    await publish.execute("failed", { action: "confirm_publish", confirmationHash: "valid" } as never);
+    expect(h.state.published).toBe(false);
+  });
+
   it("isolates canvas and publication state per Pi session", async () => {
     const adapter = new FakeExecutionAdapter();
     let firstState: FramerRunState | undefined;
@@ -145,9 +204,11 @@ describe("Framer canvas Core conformance", () => {
     });
     const first = captureExtensionTools(extension);
     const second = captureExtensionTools(extension);
-    await requireCapturedTool(first, "framer_exec").execute("publish", {
-      source: "await framer.publish()", purpose: "Publish", effect: "other",
-    } as never);
+    const publication = requireCapturedTool(first, "framer_publish");
+    adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "ready", confirmationHash: "hash" })}`;
+    await publication.execute("preview", { action: "preview" } as never);
+    adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "published", success: true, target: "branch" })}`;
+    await publication.execute("confirm", { action: "confirm_publish", confirmationHash: "hash" } as never);
     expect(firstState?.published).toBe(true);
     expect(secondState?.published).toBe(false);
     expect(firstState).not.toBe(secondState);

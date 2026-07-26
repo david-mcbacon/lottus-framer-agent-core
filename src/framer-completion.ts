@@ -42,6 +42,7 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
           reviewStatus,
           unresolvedIssues: input.unresolvedIssues.map((value) => value.trim()),
           published: state.published,
+          ...(state.publicationTarget ? { publicationTarget: state.publicationTarget } : {}),
         };
         return {
           content: [{ type: "text" as const, text: "Framer work completed and recorded." }],

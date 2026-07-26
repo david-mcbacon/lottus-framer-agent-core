@@ -23,6 +23,7 @@ export interface FramerCompletionDetails {
   readonly reviewStatus: FramerReviewStatus;
   readonly unresolvedIssues: readonly string[];
   readonly published: boolean;
+  readonly publicationTarget?: "branch" | "staging" | "production";
 }
 
 export function isFramerCompletionDetails(value: unknown): value is FramerCompletionDetails {
@@ -32,7 +33,8 @@ export function isFramerCompletionDetails(value: unknown): value is FramerComple
     && isStringArray(value.visibleChanges)
     && (value.reviewStatus === "not_needed" || value.reviewStatus === "clean" || value.reviewStatus === "issues_remain")
     && isStringArray(value.unresolvedIssues)
-    && typeof value.published === "boolean";
+    && typeof value.published === "boolean"
+    && (value.publicationTarget === undefined || value.publicationTarget === "branch" || value.publicationTarget === "staging" || value.publicationTarget === "production");
 }
 
 export const designQuestionTopics = [
