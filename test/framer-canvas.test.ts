@@ -116,13 +116,19 @@ describe("Framer canvas Core conformance", () => {
       expect(h.state.canvasEvidenceVersion).toBeLessThan(h.state.canvasMutationVersion);
     }
 
-    const unknown = harness();
-    unknown.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ unexpected: true })}`;
-    const result = await requireCapturedTool(unknown.tools, "framer_apply_changes").execute("unknown", { dsl: "x" } as never) as {
-      details: { evidence: { status: string } };
-    };
-    expect(result.details.evidence.status).toBe("incomplete");
-    expect(unknown.state.canvasEvidenceStatus).toBe("incomplete");
+    for (const value of [
+      { unexpected: true },
+      { results: "not an array" },
+      { status: "mystery", affectedIds: [] },
+    ]) {
+      const unknown = harness();
+      unknown.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify(value)}`;
+      const result = await requireCapturedTool(unknown.tools, "framer_apply_changes").execute("unknown", { dsl: "x" } as never) as {
+        details: { evidence: { status: string } };
+      };
+      expect(result.details.evidence.status).toBe("incomplete");
+      expect(unknown.state.canvasEvidenceStatus).toBe("incomplete");
+    }
   });
 
   it("isolates canvas and publication state per Pi session", async () => {

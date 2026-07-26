@@ -92,14 +92,17 @@ export function parseCanvasMutationEvidence(value: unknown): CanvasMutationEvide
     : undefined;
   const scope = text(root.scope ?? root.pagePath ?? affected?.scope);
   const explicit = text(root.status)?.toLowerCase();
-  const explicitlyIncomplete = explicit === "partial" || explicit === "incomplete" ||
-    explicit === "failed" || root.complete === false;
-  const explicitlyComplete = ["success", "succeeded", "complete", "completed", "clean", "ok"].includes(explicit ?? "") ||
-    root.complete === true;
+  const incompleteStatuses = ["partial", "incomplete", "failed"];
+  const completeStatuses = ["success", "succeeded", "complete", "completed", "clean", "ok"];
+  const explicitlyIncomplete = incompleteStatuses.includes(explicit ?? "") || root.complete === false;
+  const explicitlyComplete = completeStatuses.includes(explicit ?? "") || root.complete === true;
+  const unknownStatus = explicit !== undefined &&
+    !incompleteStatuses.includes(explicit) && !completeStatuses.includes(explicit);
   const hasKnownEvidence = explicitlyComplete || explicitlyIncomplete || diagnostics.length > 0 ||
-    "results" in root || "commands" in root || "affectedIds" in root || "renamedIds" in root ||
-    "affected" in root || "summary" in root;
-  const status: CanvasEvidenceStatus = explicitlyIncomplete || !hasKnownEvidence
+    Array.isArray(root.results) || Array.isArray(root.commands) || Array.isArray(root.affectedIds) ||
+    Array.isArray(root.nodeIds) || object(root.renamedIds) !== undefined ||
+    object(root.affected) !== undefined || object(root.summary) !== undefined;
+  const status: CanvasEvidenceStatus = explicitlyIncomplete || unknownStatus || !hasKnownEvidence
     ? "incomplete"
     : diagnostics.length ? "issues" : "clean";
 
