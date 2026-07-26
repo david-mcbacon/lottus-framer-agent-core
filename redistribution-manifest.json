@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "markdown": [
+    {
+      "path": "README.md",
+      "provenance": "Lottus project documentation",
+      "redistribution": "approved"
+    },
+    {
+      "path": "NOTICE.md",
+      "provenance": "Lottus legal notice",
+      "redistribution": "approved"
+    }
+  ]
+}

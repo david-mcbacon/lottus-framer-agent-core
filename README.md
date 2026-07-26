@@ -15,7 +15,7 @@ The host must provide the peer dependencies. This release is certified against P
 - `@lottus-agent/framer-core` — aggregate public API.
 - `@lottus-agent/framer-core/pi` — `ask_user` and aggregate Pi extension factories.
 - `@lottus-agent/framer-core/contracts` — Design Question schemas, types, discriminator, validation, and answer formatting.
-- The aggregate export also provides the Framer execution and scratch-file adapters, canvas/code-file evidence contracts, and session-local Framer Run State.
+- The aggregate export also provides the deterministic Framer Guidance compiler, Lottus-owned base instructions, Framer execution and scratch-file adapters, canvas/code-file evidence contracts, and session-local Framer Run State.
 - `@lottus-agent/framer-core/testing` — public extension capture utilities for conformance tests.
 
 ```ts
@@ -32,6 +32,8 @@ const extension = createFramerAgentCoreExtension({
   scratchAdapter: hostScratchAdapter,
 });
 ```
+
+`compileFramerGuidance` accepts host/runtime-supplied Framer material and emits routed references, Project Inventory shards, complete verbatim raw fallback files, coverage and provenance records, warnings, and a stable content hash. Core packages no Framer-derived guidance; hosts discover it at runtime and may layer explicitly attributed system or agent additions.
 
 `ask_user` asks one designer-facing, single-select question with two to four visible outcomes. Its terminating result carries `lottus_design_question` details. A host persists the result and submits a later answer as a new user run; Core never waits for the answer.
 
