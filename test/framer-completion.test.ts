@@ -99,21 +99,29 @@ describe("Framer structured completion", () => {
     } as never)).rejects.toThrow("evidence is clean");
   });
 
-  it("keeps completion state isolated across aggregate extension sessions", async () => {
+  it("isolates concurrent extension assemblies and a resumed Pi session", async () => {
     const states: FramerRunState[] = [];
-    const extension = createFramerAgentCoreExtension({
+    const options = {
       executionAdapter: adapter,
-      onSessionStateCreated(state) {
+      onSessionStateCreated(state: FramerRunState) {
         states.push(state);
       },
-    });
+    };
+    const extension = createFramerAgentCoreExtension(options);
     const first = captureExtensionTools(extension);
-    const second = captureExtensionTools(extension);
+    const concurrent = captureExtensionTools(extension);
+    const resumed = captureExtensionTools(createFramerAgentCoreExtension(options));
     states[0]!.canvasMutationVersion = 1;
 
-    await expect(requireCapturedTool(first, "finish_framer_work").execute("first", cleanInput))
-      .rejects.toThrow("Completion blocked");
-    await expect(requireCapturedTool(second, "finish_framer_work").execute("second", cleanInput))
-      .resolves.toMatchObject({ details: { reviewStatus: "not_needed" } });
+    const results = await Promise.allSettled([
+      requireCapturedTool(first, "finish_framer_work").execute("first", cleanInput),
+      requireCapturedTool(concurrent, "finish_framer_work").execute("concurrent", cleanInput),
+      requireCapturedTool(resumed, "finish_framer_work").execute("resumed", cleanInput),
+    ]);
+
+    expect(results[0]).toMatchObject({ status: "rejected", reason: expect.objectContaining({ message: expect.stringContaining("Completion blocked") }) });
+    expect(results[1]).toMatchObject({ status: "fulfilled", value: { details: { reviewStatus: "not_needed" } } });
+    expect(results[2]).toMatchObject({ status: "fulfilled", value: { details: { reviewStatus: "not_needed" } } });
+    expect(new Set(states).size).toBe(3);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@lottus-agent/framer-core",
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
   "description": "Shared Pi runtime contracts for safe, evidence-backed Framer agent work",
   "license": "MIT",
   "repository": {
@@ -33,20 +33,32 @@
       "types": "./dist/pi.d.ts",
       "import": "./dist/pi.js"
     },
+    "./guidance": {
+      "types": "./dist/guidance.d.ts",
+      "import": "./dist/guidance.js"
+    },
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:pack": "pnpm build && node scripts/test-pack.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm test:pack"
+    "test:conformance": "vitest run test/ask-user.test.ts test/framer-canvas.test.ts test/framer-code-files.test.ts test/framer-completion.test.ts",
+    "test:guidance": "vitest run test/framer-guidance.test.ts",
+    "test:pack": "node scripts/test-pack.mjs",
+    "verify": "pnpm typecheck && pnpm test && pnpm test:pack",
+    "release:rc": "npm publish --tag rc --access public"
   },
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "rc"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "0.80.6",

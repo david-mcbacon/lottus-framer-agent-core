@@ -5,17 +5,17 @@ UI-agnostic Pi extension contracts for Framer agent work after a host has establ
 ## Install
 
 ```sh
-pnpm add @lottus-agent/framer-core@0.1.0
+pnpm add @lottus-agent/framer-core@rc
 ```
 
-The host must provide the peer dependencies. This release is certified against Pi `0.80.6` and does not bundle another Pi runtime.
+The host must provide the peer dependencies. This release is certified against exactly Pi `0.80.6` and does not promise compatibility with any wider Pi version range or bundle another Pi runtime. Node.js 20 or newer is supported.
 
 ## Exports
 
-- `@lottus-agent/framer-core` — aggregate public API.
+- `@lottus-agent/framer-core` — aggregate assembly API, including `createFramerAgentCoreExtension`, execution and scratch adapters, evidence contracts, and session-local Framer Run State.
 - `@lottus-agent/framer-core/pi` — `ask_user` and aggregate Pi extension factories.
 - `@lottus-agent/framer-core/contracts` — Design Question schemas, types, discriminator, validation, and answer formatting.
-- The aggregate export also provides the deterministic Framer Guidance compiler, Lottus-owned base instructions, Framer execution and scratch-file adapters, canvas/code-file evidence contracts, and session-local Framer Run State.
+- `@lottus-agent/framer-core/guidance` — deterministic Guidance compilation and Lottus-owned base instructions.
 - `@lottus-agent/framer-core/testing` — public extension capture utilities for conformance tests.
 
 ```ts
@@ -38,6 +38,28 @@ const extension = createFramerAgentCoreExtension({
 `ask_user` asks one designer-facing, single-select question with two to four visible outcomes. Its terminating result carries `lottus_design_question` details. A host persists the result and submits a later answer as a new user run; Core never waits for the answer.
 
 When supplied an execution adapter, the same extension registers `framer_docs`, `framer_exec`, `framer_apply_changes`, and the evidence-gated `finish_framer_work` completion tool. Supplying a scratch-file adapter additionally registers the canonical `framer_read_code_file`, `framer_create_code_file`, `framer_update_code_file`, and `framer_check_code_file` lifecycle. Core owns filename/source validation, optimistic-concurrency snapshots, generated Framer scripts, normalized exports and diagnostics, expected-export checks, derived review status, structured completion, and session-local mutation/publication state. Hosts own command execution, scratch filesystem policy, and presentation of the stable `lottus_framer_completion` details.
+
+## Contributor consumption workflows
+
+To exercise unpublished Core changes in a sibling host without depending on the repository layout, build and link the package:
+
+```sh
+# In lottus-framer-agent-core
+pnpm install
+pnpm build
+pnpm link --global
+
+# In the host repository
+pnpm link --global @lottus-agent/framer-core
+```
+
+Before packaged Desktop acceptance, prefer the immutable prerelease artifact over linking:
+
+```sh
+pnpm add @lottus-agent/framer-core@rc
+```
+
+Maintainers verify the exact tarball with `pnpm test:pack` and publish it with `pnpm release:rc`, which explicitly selects the non-stable `rc` tag. Run `pnpm verify` before either workflow.
 
 ## Scope and licensing
 
