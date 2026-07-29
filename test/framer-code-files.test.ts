@@ -94,11 +94,13 @@ describe("Framer code-file Core conformance", () => {
       "framer_query_analytics",
       "framer_read_code_file",
       "framer_read_controls",
+      "framer_read_node_context",
       "framer_replace_text",
       "framer_search_code_files",
       "framer_search_fonts",
       "framer_update_code_file",
       "framer_verify_mutation",
+      "record_design_plan",
     ]);
   });
 

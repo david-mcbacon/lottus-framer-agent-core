@@ -15,6 +15,17 @@ function harness() {
 }
 
 describe("routine Framer operations", () => {
+  it("resolves explicit Context Picker targets with bounded scope evidence", async () => {
+    const h = harness(); h.adapter.output = { status: "found", nodeId: "node-1", actualScopeId: "page-1", node: { id: "node-1" } };
+    const read = await requireCapturedTool(h.tools, "framer_read_node_context").execute("read", { nodeId: "node-1", expectedScopeId: "page-1", pagePath: "/" } as never) as any;
+    expect(h.adapter.source).toContain("framer.agent.getNode");
+    expect(h.adapter.source).toContain("framer.agent.serialize");
+    expect(h.adapter.source).toContain("framer.agent.getScopeNode");
+    expect(h.adapter.source).toContain("scope_mismatch");
+    expect(read.details).toMatchObject({ operation: "read-node-context", explicitUserContext: true });
+    expect(h.state.genericMutationVersion).toBe(0);
+  });
+
   it("batches exact heterogeneous control reads", async () => {
     const h = harness(); h.adapter.output = [{ kind: "component", identifiers: ["c1"], value: { c1: {} } }, { kind: "icons", matches: ["Menu"] }];
     await requireCapturedTool(h.tools, "framer_read_controls").execute("x", { requests: [

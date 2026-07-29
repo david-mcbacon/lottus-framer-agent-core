@@ -64,6 +64,26 @@ const controlRequest = Type.Union([
 export function createFramerOperationsExtension(adapter: FramerExecutionAdapter, state: FramerRunState): ExtensionFactory {
   return (pi: ExtensionAPI) => {
     pi.registerTool({
+      name: "framer_read_node_context", label: "Read Explicit Framer Context",
+      description: "Resolve one user-provided Context Picker node ID through a fresh bounded project read. Reports missing and changed-scope targets without guessing replacements.",
+      promptSnippet: "Resolve an explicit Context Picker target before changing it",
+      parameters: Type.Object({
+        nodeId: IDENTIFIER,
+        expectedScopeId: Type.Optional(IDENTIFIER),
+        pagePath: Type.Optional(IDENTIFIER),
+      }, { additionalProperties: false }),
+      async execute(_id, input, signal, _update, ctx) {
+        exact(input.nodeId, "Context Picker node ID");
+        if (input.expectedScopeId) exact(input.expectedScopeId, "Context Picker scope ID");
+        if (input.pagePath) exact(input.pagePath, "Context Picker page path");
+        const options = input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : "";
+        const source = `const target = ${JSON.stringify(input)}; const node = await framer.agent.getNode({ id: target.nodeId }${options}); if (!node) { console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: "not_found", nodeId: target.nodeId, action: "ask the user to paste the intended layer with Context Picker again" })); } else { const [serialized, parent, scope, rect] = await Promise.all([framer.agent.serialize({ id: target.nodeId, depth: 2, ancestorPath: true }${options}), framer.agent.getParentNode({ id: target.nodeId }${options}), framer.agent.getScopeNode({ id: target.nodeId }${options}), framer.agent.getRect({ id: target.nodeId }${options})]); const status = target.expectedScopeId && scope?.id !== target.expectedScopeId ? "scope_mismatch" : "found"; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status, nodeId: target.nodeId, expectedScopeId: target.expectedScopeId, actualScopeId: scope?.id, node: serialized, parent: parent ? { id: parent.id, name: parent.name, type: parent.type } : null, scope: scope ? { id: scope.id, name: scope.name, type: scope.type } : null, rect, ...(status === "scope_mismatch" ? { action: "ask the user to paste the intended layer with Context Picker again; do not substitute another node" } : {}) })); }`;
+        const { execution, value } = await run(adapter, source, signal, ctx?.cwd ?? process.cwd());
+        return result("read-node-context", value, { ...execution.details, explicitUserContext: true });
+      },
+    });
+
+    pi.registerTool({
       name: "framer_read_controls", label: "Read Framer Controls",
       description: "Batch exact component, icon-set, icon-catalog, layout-template, and shader metadata reads in one bounded operation.",
       promptSnippet: "Batch exact Framer control and catalog reads",

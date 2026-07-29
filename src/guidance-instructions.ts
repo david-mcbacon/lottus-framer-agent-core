@@ -31,7 +31,7 @@ Read the smallest matching runtime-generated reference set under \`.lottus/frame
 - Create or edit canvas content: \`tools/apply.md\`; choose exactly one implementation strategy from \`strategy/creation.md\`, \`strategy/edit.md\`, or \`strategy/recreation.md\`. Add \`strategy/planning.md\`, \`strategy/verification.md\`, relevant guides, and domain routes independently.
 - Implementation guides: use \`framer_get_guides\` with exact names from \`guides/index.md\`; unknown names are errors.
 - Font discovery: use \`framer_search_fonts\`; name and semantic query are mutually exclusive, and Framer's matcher order is authoritative.
-- Analytics, visual verification, live context, or canvas-versus-code decisions: read \`tools/analytics.md\`, \`strategy/visual-verification.md\`, \`project/live-context.md\`, or \`strategy/canvas-vs-code.md\` respectively.
+- Analytics, visual verification, or canvas-versus-code decisions: read \`tools/analytics.md\`, \`strategy/visual-verification.md\`, or \`strategy/canvas-vs-code.md\` respectively. Resolve explicit Context Picker targets with \`framer_read_node_context\`; never infer the local editor selection.
 - Code components: \`code/authoring.md\` and only the individual \`code/controls/<name>.md\` files used.
 - Images, project data, publish, or limitations: the matching file under \`tools/\` or \`limitations.md\`.
 - Delegation to Framer's own agent, only when explicitly requested: \`start-conversation.md\`.

@@ -4,7 +4,7 @@
 
 `pnpm verify` is the release gate. It typechecks, runs the complete public suite, packs the npm artifact, installs it in a clean consumer with exact peer runtimes, imports every export, assembles optional adapters, checks the redistribution allowlist and provenance records, and proves Core does not install a second Pi runtime.
 
-The suite covers Design Questions; mutation and publication evidence; routed Guidance; geometry, screenshots, external images, and stock images; typed project and code operations; fresh live context; Design Plans and model profiles; code discovery; observed patterns; prompt-prefix continuity; and supported upstream compatibility.
+The suite covers Design Questions; mutation and publication evidence; routed Guidance; geometry, screenshots, external images, and stock images; typed project and code operations; explicit Context Picker target resolution; Design Plans and model profiles; code discovery; observed patterns; prompt-prefix continuity; and supported upstream compatibility.
 
 ## Baseline comparison
 
@@ -26,7 +26,7 @@ Provider-only measurements remain explicitly unavailable because this release ga
 
 ## Host and Cloud boundary
 
-The public root, `contracts`, `pi`, `guidance`, and `testing` exports expose visual evidence, observed effects, typed queries, live context, Design Plans, model profiles, and observed-pattern contracts. Hosts provide authenticated execution, visual, scratch-file, and live-context adapters.
+The public root, `contracts`, `pi`, `guidance`, and `testing` exports expose visual evidence, observed effects, typed queries, explicit Context Picker reads, Design Plans, model profiles, and observed-pattern contracts. Hosts provide authenticated execution, visual, and scratch-file adapters. Local Framer editor selection is user-provided through Context Picker payloads, never inferred by the headless session.
 
 Core does not own credentials, relays, connection lifecycle, persistence, Electron UI, or Tenant Sandbox authorization/isolation. Lottus Cloud must adopt these contracts in issue #21 without moving sandbox security into Core.
 

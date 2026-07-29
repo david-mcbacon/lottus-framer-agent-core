@@ -52,9 +52,11 @@ describe("Framer canvas Core conformance", () => {
       "framer_publish",
       "framer_query_analytics",
       "framer_read_controls",
+      "framer_read_node_context",
       "framer_replace_text",
       "framer_search_fonts",
       "framer_verify_mutation",
+      "record_design_plan",
     ]);
   });
 

@@ -18,7 +18,7 @@ The host must provide the peer dependencies. This release is certified against e
 | Framer public API | Methods listed by `REQUIRED_FRAMER_PUBLIC_METHODS`; checked at runtime |
 | Pi (`pi-ai`, `pi-coding-agent`) | `0.80.6` exactly |
 | Node.js host | `>=20` |
-| Core live-context schema | `1` |
+| Explicit Context Picker target reads | `framer_read_node_context` |
 
 Hosts must run `inspectFramerCompatibility` against the connected Framer runtime. A new upstream version is unsupported until its complete prompt fixture and public-method record pass conformance.
 

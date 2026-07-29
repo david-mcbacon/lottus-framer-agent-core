@@ -2,29 +2,6 @@ import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-a
 import { Type, type Static } from "typebox";
 import type { PromptRunBaseline } from "./baseline.js";
 
-export type LiveContextAvailability = "available" | "unavailable";
-export interface LiveFramerContext {
-  readonly observedAt: string;
-  readonly availability: LiveContextAvailability;
-  readonly unavailableReason?: string;
-  readonly currentPage?: { readonly id?: string; readonly name: string; readonly path?: string };
-  readonly currentScope?: { readonly id?: string; readonly name?: string; readonly kind?: string };
-  readonly selection?: readonly { readonly id?: string; readonly name?: string; readonly kind?: string }[];
-  readonly theme?: string;
-  readonly attachments?: readonly { readonly name: string; readonly mediaType?: string }[];
-  readonly relevantComponents?: readonly { readonly id?: string; readonly name: string }[];
-  readonly codeFileMap?: readonly { readonly name: string; readonly path?: string }[];
-  readonly styles?: readonly string[];
-  readonly fonts?: readonly string[];
-  readonly icons?: readonly string[];
-  readonly shaders?: readonly string[];
-  readonly timeContext?: { readonly now: string; readonly timeZone?: string };
-}
-
-export interface LiveFramerContextProvider {
-  getLiveContext(input: { readonly prompt: string; readonly workspaceRoot?: string; readonly signal?: AbortSignal }): Promise<LiveFramerContext>;
-}
-
 export type FramerWorkStrategy = "creation" | "recreation" | "responsive" | "structural" | "edit";
 export interface DesignPlanItem {
   readonly id: string;
@@ -48,11 +25,16 @@ export interface FramerSteeringProfile {
 
 export const LOTTUS_WORKING_SCOPE_GUIDANCE = `## Working scope
 
-- For an unqualified edit, use the current live scope and selection.
+- Context Picker JSON is explicit user-provided Framer context. Treat its nodeId as the primary target and scopeId, scopeType, scopeName, and urlPath as supporting scope metadata.
+- Resolve a Context Picker target with framer_read_node_context before changing it. Never infer the user's local Framer selection from a headless session.
+- Prefer Context Picker targets in the latest user message. Reuse an older target only when the user explicitly refers back to it.
+- If a request depends on words such as "this", "here", "selected", or "current" without a Context Picker target or another unique target, ask the user to paste the intended layer with Context Picker.
+- Do not require Context Picker when a page, component, path, or other target is already unambiguous.
+- If a target is missing or its scope changed, do not substitute a similarly named node; ask the user to paste it again.
 - For an unambiguous named existing page, inspect and edit that page.
 - Create a new page only when the request clearly asks for one.
 - If a requested new page name collides with an existing page, ask a Design Question before changing either page.
-- Newer Live Framer Context always overrides Generated Project Inventory.`;
+- Generated Project Inventory is orientation only. Focused project reads are authoritative for mutable state.`;
 
 export function requiresDesignPlan(prompt: string): boolean {
   const normalized = prompt.toLowerCase();
@@ -60,39 +42,6 @@ export function requiresDesignPlan(prompt: string): boolean {
     && /\b(change|update|replace|set|fix)\b/u.test(normalized)
     && !/\b(page|site|responsive|breakpoint|recreate|create|redesign|structure|layout)\b/u.test(normalized)) return false;
   return /\b(create|build|design|redesign|recreate|rebuild|responsive|breakpoint|page|site|structure|layout|section)\b/u.test(normalized);
-}
-
-export function renderLiveFramerContext(context: LiveFramerContext): string {
-  validateLiveContext(context);
-  const lines = ["## Live Framer Context", "", `- Observed at: ${context.observedAt}`, `- Rich canvas context: ${context.availability}`];
-  if (context.unavailableReason) lines.push(`- Unavailable reason: ${context.unavailableReason}`);
-  append(lines, "Current page", context.currentPage);
-  append(lines, "Current scope", context.currentScope);
-  append(lines, "Selection", context.selection);
-  append(lines, "Theme", context.theme);
-  append(lines, "Attachments", context.attachments);
-  append(lines, "Relevant components", context.relevantComponents);
-  append(lines, "Code-file map", context.codeFileMap);
-  append(lines, "Styles", context.styles);
-  append(lines, "Fonts", context.fonts);
-  append(lines, "Icons", context.icons);
-  append(lines, "Shaders", context.shaders);
-  append(lines, "Time", context.timeContext);
-  lines.push("", "This fresh host observation overrides conflicting Generated Project Inventory values.");
-  return `${lines.join("\n")}\n`;
-}
-
-function append(lines: string[], label: string, value: unknown): void {
-  if (value !== undefined) lines.push(`- ${label}: ${stableJson(value)}`);
-}
-
-function validateLiveContext(context: LiveFramerContext): void {
-  if (!context.observedAt || Number.isNaN(Date.parse(context.observedAt))) throw new Error("Live context requires an ISO observedAt timestamp");
-  if (context.availability === "unavailable" && !context.unavailableReason?.trim()) throw new Error("Unavailable live context requires a reason");
-  const serialized = stableJson(context).toLowerCase();
-  for (const forbidden of ["credential", "sessionid", "session_id", "connectionkey", "connection_key", "token", "authorization"]) {
-    if (serialized.includes(`\"${forbidden}\"`)) throw new Error(`Live context exposes forbidden lifecycle or credential field: ${forbidden}`);
-  }
 }
 
 const planItemSchema = Type.Object({
@@ -116,20 +65,20 @@ const workItemSchema = Type.Object({
 type WorkItemInput = Static<typeof workItemSchema>;
 
 export function createPromptRunSteeringExtension(options: {
-  readonly liveContextProvider: LiveFramerContextProvider;
   readonly profile?: FramerSteeringProfile;
-}): ExtensionFactory {
+} = {}): ExtensionFactory {
   const profile = options.profile ?? {};
   return (pi: ExtensionAPI) => {
     const plans = new Map<string, DesignPlanItem>();
     const completed = new Set<string>();
-    pi.on("before_agent_start", async (event, context) => {
-      const live = await options.liveContextProvider.getLiveContext({ prompt: event.prompt, workspaceRoot: context.cwd });
-      const planRequirement = profile.designPlans !== false && requiresDesignPlan(event.prompt)
-        ? "\n\nThis substantial request requires record_design_plan before implementation. Completion comes from structured implementation and verification evidence, never summary prose."
-        : "";
-      return { systemPrompt: `${event.systemPrompt}\n\n${LOTTUS_WORKING_SCOPE_GUIDANCE}${planRequirement}\n\n${renderLiveFramerContext(live)}` };
-    });
+    if (typeof pi.on === "function") {
+      pi.on("before_agent_start", async (event) => {
+        const planRequirement = profile.designPlans !== false && requiresDesignPlan(event.prompt)
+          ? "\n\nThis substantial request requires record_design_plan before implementation. Completion comes from structured implementation and verification evidence, never summary prose."
+          : "";
+        return { systemPrompt: `${event.systemPrompt}\n\n${LOTTUS_WORKING_SCOPE_GUIDANCE}${planRequirement}` };
+      });
+    }
     if (profile.designPlans !== false) pi.registerTool({
       name: "record_design_plan", label: "Record Design Plan",
       description: "Record the structured plan required before substantial Framer creation, recreation, responsive, or broad structural work. Trivial copy and narrow property edits need no plan.",
@@ -167,10 +116,4 @@ export function evaluateProfileEfficiency(baseline: PromptRunBaseline, candidate
   const before = baseline.measurements.modelSteps; const after = candidate.measurements.modelSteps;
   if (before === "unavailable" || after === "unavailable") return { accepted: false, stepReduction: "unavailable", reason: "Model-step measurements unavailable" };
   return { accepted: after <= before, stepReduction: before - after, ...(after > before ? { reason: "Candidate did not reduce steps" } : {}) };
-}
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (value && typeof value === "object") { const record = value as Record<string, unknown>; return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`; }
-  return JSON.stringify(value);
 }
