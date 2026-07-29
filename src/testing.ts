@@ -16,6 +16,8 @@ export interface CapturedPiTool {
 export function captureExtensionTools(extension: ExtensionFactory): ReadonlyMap<string, CapturedPiTool> {
   const tools = new Map<string, CapturedPiTool>();
   extension({
+    on() {},
+    sendMessage() {},
     registerTool(definition: CapturedPiTool) {
       tools.set(definition.name, definition);
     },

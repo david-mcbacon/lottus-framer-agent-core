@@ -60,15 +60,22 @@ describe("public upstream compatibility seam", () => {
       readComponentControls() {}, readIconSetControls() {}, readIcons() {}, readLayoutTemplateControls() {}, readShaderControls() {}, replaceText() {},
     }, createCodeFile() {}, getCodeFile() {}, getCodeFiles() {} };
     const record = inspectFramerCompatibility({
-      packageVersion: "0.0.38",
+      packageVersion: "0.0.40",
       framerApiVersion: "2026.07",
       contextSchemaVersion: 1,
       promptSections: ["Tools", "Updating the Project", "Core Principles", "How Projects Work"],
       publicApi,
     });
     expect(Object.keys(record.publicMethods)).toEqual(REQUIRED_FRAMER_PUBLIC_METHODS);
-    expect(record).toMatchObject({ packageVersion: "0.0.38", framerApiVersion: "2026.07", contextSchemaVersion: 1, compatible: true });
+    expect(record).toMatchObject({ packageVersion: "0.0.40", framerApiVersion: "2026.07", contextSchemaVersion: 1, compatible: true });
     expect(inspectFramerCompatibility({ ...record, promptSections: [], publicApi }).compatible).toBe(false);
+  });
+
+  it("keeps text replacement conservative because 0.0.40 documents no multiplicity semantics", () => {
+    const tools = readFileSync(path.join(import.meta.dirname, "fixtures", "framer-agent-0.0.40", "prompt", "tools.md"), "utf8");
+    const section = tools.match(/## Replacing Text[\s\S]*?(?=\n## framer\.agent\.readProject)/u)?.[0] ?? "";
+    expect(section).toContain("returning `true` when text was replaced or `false`");
+    expect(section).not.toMatch(/first occurrence|all occurrences/iu);
   });
 
   it("omits optional steering without changing mandatory safety and result tools", () => {

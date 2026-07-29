@@ -31,7 +31,7 @@ function recognizedFiles(): GuidanceSourceFile[] {
 
 function input(files = recognizedFiles()): CompileFramerGuidanceInput {
   return {
-    framerAgentVersion: "0.0.38",
+    framerAgentVersion: "0.0.40",
     projectId: "demo",
     sessionId: "session-1",
     upstreamBundle: { files },
@@ -54,7 +54,7 @@ describe("compileFramerGuidance public seam", () => {
   });
 
   it("keeps every critical route reachable for the complete supported fixture", () => {
-    const root = new URL("./fixtures/framer-agent-0.0.38/", import.meta.url);
+    const root = new URL("./fixtures/framer-agent-0.0.40/", import.meta.url);
     const files: GuidanceSourceFile[] = [
       { path: "framer/projects/demo/metadata.json", content: JSON.stringify({ contextSchemaVersion: 1 }) },
       { path: "framer/projects/demo/project-inventory.md", content: "<pages><page name=\"Home\" /></pages><fonts><font name=\"Inter\" /></fonts>" },

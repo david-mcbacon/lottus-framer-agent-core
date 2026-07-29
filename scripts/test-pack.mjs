@@ -42,7 +42,7 @@ try {
     assert(packedPaths.has(targets.types.slice(2)), `Export ${name} is missing its declaration file.`);
   }
 
-  const allowedPaths = new Set(["LICENSE", "NOTICE.md", "README.md", "docs/release-0.2.0.md", "package.json", "redistribution-manifest.json"]);
+  const allowedPaths = new Set(["LICENSE", "NOTICE.md", "README.md", "docs/release-0.2.1.md", "package.json", "redistribution-manifest.json"]);
   const sourceModules = (await readdir(join(repo, "src")))
     .filter((path) => path.endsWith(".ts"))
     .map((path) => path.slice(0, -3));

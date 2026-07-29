@@ -8,7 +8,7 @@ Record at least one `canvas-edit` and one `project-read` Prompt Run with `create
 
 Before each model turn, pass the complete transcript to `createPromptPrefixGuard().assert(...)`. Any removal, replacement, redaction, or reordering of an earlier message or tool result fails the run. Appending remains valid, preserving a reusable prompt prefix.
 
-`test/fixtures/framer-agent-0.0.38` is the complete real prompt capture for every supported upstream version (currently `0.0.38`). Compatibility tests compile it through public `compileFramerGuidance`, then record package/API/schema versions, critical prompt sections, and all public Framer methods Core tools require.
+`test/fixtures/framer-agent-0.0.40` is the complete real prompt capture for every supported upstream version (currently `0.0.40`). Compatibility tests compile it through public `compileFramerGuidance`, then record package/API/schema versions, critical prompt sections, and all public Framer methods Core tools require.
 
 Capability profiles may omit optional structured Design Questions. Canvas safety tools, evidence gates, and structured completion remain identical.
 

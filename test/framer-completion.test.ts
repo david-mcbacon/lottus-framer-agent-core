@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createFramerCompletionExtension,
   createFramerAgentCoreExtension,
   type FramerExecutionAdapter,
   type FramerRunState,
@@ -72,6 +73,37 @@ describe("Framer structured completion", () => {
       .rejects.toThrow("Card.tsx");
   });
 
+  it("reports pending evidence before validating unresolved issue claims", async () => {
+    const h = harness();
+    h.state.genericMutationVersion = 1;
+    h.state.genericVerificationAction = "verify the latest text replacement";
+    await expect(requireCapturedTool(h.tools, "finish_framer_work").execute("pending", {
+      summary: "Done",
+      visibleChanges: [],
+      unresolvedIssues: ["Verifier unavailable"],
+    } as never)).rejects.toThrow("verify the latest text replacement");
+  });
+
+  it("labels model stop after failed finish as incomplete", async () => {
+    const state = harness().state;
+    state.genericMutationVersion = 1;
+    state.genericVerificationAction = "verify the latest text replacement";
+    const handlers = new Map<string, Array<() => void>>();
+    const messages: Array<Record<string, unknown>> = [];
+    createFramerCompletionExtension(state)({
+      on(name: string, handler: () => void) { handlers.set(name, [...(handlers.get(name) ?? []), handler]); },
+      sendMessage(message: Record<string, unknown>) { messages.push(message); },
+      registerTool() {},
+    } as never);
+    handlers.get("agent_start")?.forEach((handler) => handler());
+    handlers.get("agent_end")?.forEach((handler) => handler());
+    expect(messages).toEqual([expect.objectContaining({
+      customType: "lottus_runtime_status",
+      content: expect.stringContaining("Framer work incomplete"),
+      display: true,
+    })]);
+  });
+
   it("requires unresolved issues exactly when latest evidence reports issues", async () => {
     const h = harness();
     h.state.canvasMutationVersion = 1;
@@ -92,6 +124,7 @@ describe("Framer structured completion", () => {
 
     h.state.canvasEvidenceStatus = "clean";
     h.state.canvasDiagnostics = [];
+    h.state.geometryEvidenceVersion = 1;
     await expect(finish.execute("false-issue", {
       summary: "Done",
       visibleChanges: [],

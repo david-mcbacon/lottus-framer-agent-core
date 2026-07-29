@@ -1,6 +1,6 @@
 {
   "name": "@lottus-agent/framer-core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shared Pi runtime contracts for safe, evidence-backed Framer agent work",
   "license": "MIT",
   "repository": {
@@ -18,7 +18,7 @@
     "LICENSE",
     "NOTICE.md",
     "README.md",
-    "docs/release-0.2.0.md",
+    "docs/release-0.2.1.md",
     "redistribution-manifest.json"
   ],
   "exports": {

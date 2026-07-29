@@ -2,7 +2,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { parseCanvasMutationEvidence, serializeCanvasMutationEvidence } from "./canvas-evidence.js";
-import { createFramerRunState, type FramerRunState } from "./framer-run-state.js";
+import { createFramerRunState, recordGenericMutation, type FramerRunState } from "./framer-run-state.js";
 
 export const FRAMER_RESULT_PREFIX = "[LOTTUS_FRAMER_RESULT_V1]";
 
@@ -47,6 +47,13 @@ const DEDICATED_OPERATION = /\b(?:replaceText|flattenComponentInstance|makeExter
 
 const KNOWN_MUTATOR = /\b(?:replaceText|flattenComponentInstance|makeExternalComponentLocal|set[A-Z][A-Za-z0-9_$]*|create[A-Z][A-Za-z0-9_$]*|update[A-Z][A-Za-z0-9_$]*|remove)\s*\(/u;
 const KNOWN_READ = /\b(?:readProject|queryImages|queryAnalytics|read[A-Z][A-Za-z0-9_$]*|get[A-Z][A-Za-z0-9_$]*|serialize(?:Nodes)?|paginate)\s*\(/u;
+
+export function observeFramerSourceEffect(source: string, succeeded: boolean): FramerObservedEffect {
+  if (/\bpublish\s*\(/u.test(source)) return { kind: "publication", succeeded };
+  if (KNOWN_MUTATOR.test(source) || /\bapplyChanges\s*\(/u.test(source)) return { kind: "mutation", succeeded };
+  if (KNOWN_READ.test(source)) return { kind: "read", succeeded };
+  return { kind: "unknown", succeeded };
+}
 
 function genericMutationReason(source: string, declared: string, observed?: FramerObservedEffect): string | undefined {
   if (observed?.kind === "mutation") return observed.verificationAction ?? "verify the adapter-observed mutation with the matching typed Core operation";
@@ -177,19 +184,24 @@ export function createFramerCanvasExtension(
         }
         const declaredMutation = input.effect === "mutate" || KNOWN_MUTATOR.test(input.source)
           || (input.effect !== "read" && !KNOWN_READ.test(input.source));
+        let mutationVersion: number | undefined;
         if (declaredMutation) {
-          state.genericMutationVersion += 1;
           const reason = genericMutationReason(input.source, input.effect);
-          if (reason) state.genericVerificationAction = reason;
+          mutationVersion = recordGenericMutation(state, { verified: false, ...(reason ? { pendingAction: reason } : {}) });
         }
         const timeoutMs = /startConversation\s*\(/u.test(input.source) ? 600_000 : 120_000;
         const executed = await adapter.execute(input.source, { ...(signal ? { signal } : {}), timeoutMs, workspaceRoot: ctx?.cwd ?? process.cwd() });
         const reason = genericMutationReason(input.source, input.effect, executed.observedEffect);
-        if (reason && !declaredMutation) state.genericMutationVersion += 1;
-        if (reason) state.genericVerificationAction = reason;
+        if (reason && !declaredMutation) mutationVersion = recordGenericMutation(state, { verified: false, pendingAction: reason });
+        else if (reason) state.genericVerificationAction = reason;
         return {
           content: [{ type: "text" as const, text: executed.visibleOutput }],
-          details: { ...executed.details, declaredEffect: input.effect, observedEffect: executed.observedEffect },
+          details: {
+            ...executed.details,
+            declaredEffect: input.effect,
+            observedEffect: executed.observedEffect,
+            ...(mutationVersion ? { mutationVersion } : {}),
+          },
         };
       },
     });
@@ -236,16 +248,43 @@ export function createFramerCanvasExtension(
       promptSnippet: "Verify the latest generic mutation with a focused read",
       parameters: Type.Object({
         mutationVersion: Type.Integer({ minimum: 1 }),
-        source: Type.String({ minLength: 1, maxLength: 200_000 }),
+        assertion: Type.String({
+          minLength: 1,
+          maxLength: 200_000,
+          description: "One read-only JavaScript boolean expression. Example: (await framer.agent.getNode({ id: 'hero' }))?.name === 'Hero'.",
+        }),
         expected: Type.String({ minLength: 1, maxLength: 500 }),
       }, { additionalProperties: false }),
       executionMode: "sequential",
       async execute(_id, input, signal, _update, ctx) {
         if (input.mutationVersion !== state.genericMutationVersion) throw new Error("Generic mutation verification is stale; verify the latest mutation version.");
-        if (KNOWN_MUTATOR.test(input.source) || /\b(?:applyChanges|publish)\s*\(/u.test(input.source)) throw new Error("Generic mutation verification must be read-only.");
-        const executed = await adapter.execute(input.source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        if (state.typedVerification?.mutationVersion === input.mutationVersion) throw new Error("Use framer_verify_typed_operation for this typed mutation; free-form JavaScript verification is reserved for framer_exec.");
+        if (KNOWN_MUTATOR.test(input.assertion) || /\b(?:applyChanges|publish)\s*\(/u.test(input.assertion)) throw new Error("Generic mutation verification must be read-only.");
+        const assertion = input.assertion.trim();
+        if (/^(["'`])[\s\S]*\1$/u.test(assertion)) {
+          throw new Error("Verification assertion is a string literal, not a boolean check. Example: (await framer.agent.getNode({ id: 'hero' }))?.name === 'Hero'.");
+        }
+        if (!/[()=!<>?.]|\b(?:await|true|false|Boolean)\b/u.test(assertion)) {
+          throw new Error("Verification assertion looks like prose. Pass one read-only JavaScript expression returning boolean true.");
+        }
+        const source = `const verified = await (${input.assertion}); if (typeof verified !== "boolean") throw new Error("LOTTUS_ASSERTION_NON_BOOLEAN"); if (!verified) throw new Error("LOTTUS_ASSERTION_FALSE"); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: "verified" }));`;
+        let executed: FramerExecutionResult;
+        try {
+          executed = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: ctx?.cwd ?? process.cwd() });
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          if (message.includes("LOTTUS_ASSERTION_NON_BOOLEAN")) throw new Error("Verification assertion returned a non-boolean value; compare the read result to the expected state.");
+          if (message.includes("LOTTUS_ASSERTION_FALSE")) throw new Error("Verification state check failed: the read completed but expected state was not present.");
+          if (/typia|invalid (?:type|argument)|expected.*(?:object|id)|getNode/iu.test(message)) throw new Error("Verification used invalid Framer API arguments. Use await framer.agent.getNode({ id: 'node-id' }).");
+          if (/unexpected|syntax|not defined|identifier/iu.test(message)) throw new Error("Verification assertion is not valid JavaScript. Pass one read-only boolean expression.");
+          throw new Error(`Verification read failed: ${message.slice(0, 500)}`);
+        }
         if (executed.observedEffect?.kind !== "read" || !executed.observedEffect.succeeded) {
           throw new Error("Completion evidence remains pending: the adapter did not observe a successful read-only verification.");
+        }
+        const result = extractStructuredResult(executed.rawOutput);
+        if (typeof result !== "object" || result === null || (result as Record<string, unknown>).status !== "verified") {
+          throw new Error("Completion evidence remains pending: the verification assertion returned invalid evidence.");
         }
         state.genericEvidenceVersion = state.genericMutationVersion;
         delete state.genericVerificationAction;

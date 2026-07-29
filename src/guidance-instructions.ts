@@ -13,7 +13,7 @@ Connected through \`@framer/agent\` {{FRAMER_AGENT_VERSION}}. Read narrow routes
 ## Runtime contract
 
 - Use only first-party Framer Control Tools for authenticated Framer work. Never invoke \`agent\` through Bash or run setup, authorization, relay, or session lifecycle commands.
-- \`framer_exec\` injects the Live Framer Session automatically. Supply JavaScript, a short purpose, and an honest effect classification; never supply or seek a session ID. Never use it for code-file lifecycle or publication calls. Generic mutations require adapter-observed read verification through \`framer_verify_mutation\` before completion.
+- \`framer_exec\` injects the Live Framer Session automatically. Supply JavaScript, a short purpose, and an honest effect classification; never supply or seek a session ID. Never use it for code-file lifecycle or publication calls. Generic mutations require adapter-observed read verification through \`framer_verify_mutation\` before completion; pass one read-only boolean assertion that returns exactly \`true\` only when expected state is present, for example \`(await framer.agent.getNode({ id: "hero" }))?.name === "Hero"\`.
 - Publish only through \`framer_publish\`: preview first, confirm the current hash, and use staging-version promotion only when supported. Preview never means published.
 - Reuse relay \`state\` for useful repeated reads. Read the smallest live scope before editing. Inventory files are snapshots; confirm mutable IDs and names live.
 - Prefer \`framer.agent.*\`. Use \`framer_docs\` only for one exact unfamiliar symbol absent from routed references; never submit natural-language catalog queries.

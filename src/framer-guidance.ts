@@ -229,8 +229,8 @@ function missingRequiredPromptSections(prompt: string): string[] {
     .filter((heading) => !new RegExp(`^# ${heading}\\s*$`, "imu").test(prompt));
 }
 
-/** Bundle source adapter for @framer/agent 0.0.38 generated project directories. */
-function adaptV38ProjectBundle(bundle: UpstreamBundle): AdaptedSource | undefined {
+/** Bundle source adapter for generated project directories used by @framer/agent 0.0.38 through 0.0.40. */
+function adaptGeneratedProjectBundle(bundle: UpstreamBundle): AdaptedSource | undefined {
   const metadataFile = findV38Metadata(bundle.files);
   if (!metadataFile) return undefined;
   let metadata: { contextSchemaVersion?: number; promptHash?: string; contextHash?: string };
@@ -310,7 +310,7 @@ function supportingDocumentsForUnknown(files: GuidanceSourceFile[]): SourceDocum
 }
 
 function adaptSource(bundle: UpstreamBundle): AdaptedSource {
-  return adaptV38ProjectBundle(bundle) ?? {
+  return adaptGeneratedProjectBundle(bundle) ?? {
     adapter: "unknown-fallback",
     fallback: true,
     warnings: ["No recognized generated Framer guidance schema was found; retained complete upstream fallback."],

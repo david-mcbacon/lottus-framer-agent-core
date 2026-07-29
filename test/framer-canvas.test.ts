@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createFramerAgentCoreExtension,
+  observeFramerSourceEffect,
   type FramerExecutionAdapter,
   type FramerObservedEffect,
   type FramerRunState,
@@ -14,6 +15,7 @@ class FakeExecutionAdapter implements FramerExecutionAdapter {
   readonly executions: Array<{ source: string; timeoutMs: number }> = [];
   nextOutput = "read result";
   nextObservedEffect: FramerObservedEffect | undefined;
+  nextError: Error | undefined;
 
   async docs(symbol: string) {
     this.docsCalls.push(symbol);
@@ -22,6 +24,7 @@ class FakeExecutionAdapter implements FramerExecutionAdapter {
 
   async execute(source: string, options: { timeoutMs: number }) {
     this.executions.push({ source, timeoutMs: options.timeoutMs });
+    if (this.nextError) throw this.nextError;
     return { rawOutput: this.nextOutput, visibleOutput: this.nextOutput, ...(this.nextObservedEffect ? { observedEffect: this.nextObservedEffect } : {}) };
   }
 }
@@ -56,6 +59,7 @@ describe("Framer canvas Core conformance", () => {
       "framer_replace_text",
       "framer_search_fonts",
       "framer_verify_mutation",
+      "framer_verify_typed_operation",
       "record_design_plan",
     ]);
   });
@@ -184,14 +188,35 @@ describe("Framer canvas Core conformance", () => {
     await requireCapturedTool(observed.tools, "framer_exec").execute("observed", { source: "console.log('claimed read')", purpose: "Read", effect: "read" } as never);
     expect(observed.state.genericVerificationAction).toBe("inspect external mutation failure");
     const verify = requireCapturedTool(observed.tools, "framer_verify_mutation");
-    await expect(verify.execute("failed", { mutationVersion: 1, source: "console.log('check')", expected: "changed" } as never)).rejects.toThrow("did not observe");
+    await expect(verify.execute("prose", { mutationVersion: 1, assertion: "the hero changed", expected: "changed" } as never)).rejects.toThrow("looks like prose");
+    await expect(verify.execute("string", { mutationVersion: 1, assertion: "'the hero changed'", expected: "changed" } as never)).rejects.toThrow("string literal");
+    observed.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "verified" })}`;
+    await expect(verify.execute("failed", { mutationVersion: 1, assertion: "(await framer.agent.getNode({ id: 'hero' })) !== null", expected: "changed" } as never)).rejects.toThrow("did not observe");
     observed.adapter.nextObservedEffect = { kind: "read", succeeded: true };
-    await verify.execute("verified", { mutationVersion: 1, source: "console.log('check')", expected: "changed" } as never);
+    observed.adapter.nextOutput = "logged state";
+    await expect(verify.execute("log-only", { mutationVersion: 1, assertion: "(await framer.agent.getNode({ id: 'hero' })) !== null", expected: "changed" } as never)).rejects.toThrow("structured evidence");
+    observed.adapter.nextOutput = `${RESULT_PREFIX}${JSON.stringify({ status: "verified" })}`;
+    await verify.execute("verified", { mutationVersion: 1, assertion: "(await framer.agent.getNode({ id: 'hero' })) !== null", expected: "changed" } as never);
     expect(observed.state.genericEvidenceVersion).toBe(1);
+    expect(observed.adapter.executions.at(-1)?.source).toContain('typeof verified !== "boolean"');
+
+    const invalidArguments = harness();
+    invalidArguments.state.genericMutationVersion = 1;
+    invalidArguments.adapter.nextError = new Error("Error on typia.createAssert(): invalid type on $input[0]");
+    await expect(requireCapturedTool(invalidArguments.tools, "framer_verify_mutation").execute("invalid-api", {
+      mutationVersion: 1, assertion: "(await framer.agent.getNode('hero')) !== null", expected: "changed",
+    } as never)).rejects.toThrow("getNode({ id: 'node-id' })");
 
     const unknown = harness();
     await requireCapturedTool(unknown.tools, "framer_exec").execute("unknown", { source: "await framer.agent.experimental()", purpose: "Advanced", effect: "other" } as never);
     expect(unknown.state.genericMutationVersion).toBe(1);
+  });
+
+  it("classifies executed source conservatively without model intent", () => {
+    expect(observeFramerSourceEffect("await framer.agent.getNode({ id: 'hero' })", true)).toEqual({ kind: "read", succeeded: true });
+    expect(observeFramerSourceEffect("await framer.agent.replaceText({})", true)).toEqual({ kind: "mutation", succeeded: true });
+    expect(observeFramerSourceEffect("await framer.agent.publish({ action: 'preview' })", true)).toEqual({ kind: "publication", succeeded: true });
+    expect(observeFramerSourceEffect("await framer.agent.experimental()", true)).toEqual({ kind: "unknown", succeeded: true });
   });
 
   it("previews without publishing, rejects stale confirmation, and records structured targets", async () => {

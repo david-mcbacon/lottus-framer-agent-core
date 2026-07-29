@@ -2,7 +2,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { FRAMER_RESULT_PREFIX, type FramerExecutionAdapter } from "./framer-canvas.js";
-import type { FramerRunState } from "./framer-run-state.js";
+import { recordTypedMutation, type FramerRunState } from "./framer-run-state.js";
 
 export const FRAMER_OPERATION_DETAILS_TYPE = "lottus_framer_operation" as const;
 const MAX_RESULT_BYTES = 50_000;
@@ -42,15 +42,13 @@ function exact(value: string, label: string): string {
   return value;
 }
 
-function mutationPending(state: FramerRunState, action: string): number {
-  state.genericMutationVersion += 1;
-  state.genericVerificationAction = action;
-  return state.genericMutationVersion;
-}
-
 async function run(adapter: FramerExecutionAdapter, source: string, signal: AbortSignal | undefined, cwd: string) {
   const execution = await adapter.execute(source, { ...(signal ? { signal } : {}), timeoutMs: 120_000, workspaceRoot: cwd });
   return { execution, value: extract(execution.rawOutput) };
+}
+
+function boundedTextReader(options: string): string {
+  return `const readBoundedText = async id => { const node = await framer.agent.getNode({ id }${options}); if (!node) return { status: "missing", text: "", textRunCount: 0, truncated: false }; const parts = []; let visited = 0; let truncated = false; const visit = value => { if (!value || typeof value !== "object" || visited >= 500) { if (visited >= 500) truncated = true; return; } visited += 1; if (value.type === "TextRun" && typeof value.attributes?.text === "string") parts.push(value.attributes.text); for (const child of value.children ?? []) visit(child); }; visit(node); let text = parts.join(""); if (text.length > 20000) { text = text.slice(0, 20000); truncated = true; } return { status: "read", text, textRunCount: parts.length, truncated }; };`;
 }
 
 const controlRequest = Type.Union([
@@ -105,16 +103,24 @@ export function createFramerOperationsExtension(adapter: FramerExecutionAdapter,
 
     pi.registerTool({
       name: "framer_replace_text", label: "Replace Framer Text",
-      description: "Replace exact text through Framer's formatting-preserving public operation and create pending mutation review evidence.",
+      description: "Replace exact text and read the bounded text back in the same typed operation. A single exact match self-verifies; ambiguous reads remain pending.",
       parameters: Type.Object({ id: IDENTIFIER, searchText: Type.String({ minLength: 1, maxLength: 20_000 }), replaceText: Type.String({ maxLength: 20_000 }), pagePath: Type.Optional(IDENTIFIER) }, { additionalProperties: false }),
       executionMode: "sequential",
       async execute(_id, input, signal, _update, ctx) {
         exact(input.id, "Text node ID");
-        const source = `const replaced = await framer.agent.replaceText(${JSON.stringify({ id: input.id, searchText: input.searchText, replaceText: input.replaceText })}${input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : ""}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: replaced ? "success" : "not_found", replaced }));`;
+        const options = input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : "";
+        // Framer 0.0.40 promises a boolean result but not first-vs-all semantics. Only one match is self-proving.
+        const source = `const input = ${JSON.stringify({ id: input.id, searchText: input.searchText, replaceText: input.replaceText })}; ${boundedTextReader(options)} const before = await readBoundedText(input.id); const replaced = await framer.agent.replaceText(input${options}); const after = await readBoundedText(input.id); const occurrences = before.status === "read" && !before.truncated ? before.text.split(input.searchText).length - 1 : -1; const expectedAfter = occurrences === 1 ? before.text.replace(input.searchText, input.replaceText) : undefined; const verified = replaced === true && after.status === "read" && !after.truncated && expectedAfter !== undefined && after.text === expectedAfter; const verificationStatus = replaced !== true ? "not_performed" : verified ? "verified" : "pending"; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: replaced ? "success" : "not_found", replaced, verificationStatus, before, after, occurrences }));`;
         const { execution, value } = await run(adapter, source, signal, ctx?.cwd ?? process.cwd());
         const record = value as Record<string, unknown>;
-        const version = record.replaced === true ? mutationPending(state, "verify the formatting-preserving text replacement with framer_verify_mutation") : undefined;
-        return result("replace-text", value, { ...execution.details, ...(version ? { mutationVersion: version } : {}) });
+        const version = record.replaced === true
+          ? recordTypedMutation(state, {
+              verified: record.verificationStatus === "verified",
+              descriptor: { kind: "replace-text", id: input.id, ...(input.pagePath ? { pagePath: input.pagePath } : {}) },
+              pendingAction: "retry bounded typed text readback with framer_replace_text after resolving the ambiguous or missing target",
+            })
+          : undefined;
+        return result("replace-text", value, { ...execution.details, verificationStatus: record.verificationStatus, ...(version ? { mutationVersion: version } : {}) });
       },
     });
 
@@ -138,28 +144,81 @@ export function createFramerOperationsExtension(adapter: FramerExecutionAdapter,
     pi.registerTool({
       name: "framer_flatten_component", label: "Flatten Framer Component",
       description: "Flatten one exact local component instance through Framer's public operation.",
-      parameters: Type.Object({ id: IDENTIFIER }, { additionalProperties: false }), executionMode: "sequential",
+      parameters: Type.Object({ id: IDENTIFIER, pagePath: Type.Optional(IDENTIFIER) }, { additionalProperties: false }), executionMode: "sequential",
       async execute(_id, input, signal, _update, ctx) {
         exact(input.id, "Component instance ID");
-        const source = `const value = await framer.agent.flattenComponentInstance(${JSON.stringify({ id: input.id })}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(value));`;
+        const options = input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : "";
+        const source = `const value = await framer.agent.flattenComponentInstance(${JSON.stringify({ id: input.id })}${options}); let readback = null; if (value?.status === "success" && typeof value.replacementId === "string") { const node = await framer.agent.getNode({ id: value.replacementId }${options}); readback = node ? { id: node.id, type: node.type, name: node.name } : { status: "missing" }; } const verified = value?.status === "success" && readback?.id === value.replacementId && readback?.type !== "ComponentInstanceNode"; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ ...value, verificationStatus: value?.status !== "success" ? "not_performed" : verified ? "verified" : "pending", readback }));`;
         const { execution, value } = await run(adapter, source, signal, ctx?.cwd ?? process.cwd());
-        const version = (value as Record<string, unknown>)?.status === "success" ? mutationPending(state, "verify the flattened component layers with framer_verify_mutation") : undefined;
-        return result("flatten-component", value, { ...execution.details, ...(version ? { mutationVersion: version } : {}) });
+        const record = value as Record<string, unknown>;
+        const version = record?.status === "success" ? recordTypedMutation(state, {
+          verified: record.verificationStatus === "verified",
+          ...(typeof record.replacementId === "string" ? { descriptor: { kind: "flatten-component" as const, replacementId: record.replacementId, ...(input.pagePath ? { pagePath: input.pagePath } : {}) } } : {}),
+          pendingAction: "retry the typed flattened-component readback after resolving the missing replacement node",
+        }) : undefined;
+        return result("flatten-component", value, { ...execution.details, verificationStatus: record.verificationStatus, ...(version ? { mutationVersion: version } : {}) });
       },
     });
 
     pi.registerTool({
       name: "framer_make_component_local", label: "Make Framer Component Local",
       description: "Make one exact external component instance local; pass replaceAll only after explicit one-versus-all scope is known.",
-      parameters: Type.Object({ id: IDENTIFIER, replaceAll: Type.Optional(Type.Boolean()) }, { additionalProperties: false }), executionMode: "sequential",
+      parameters: Type.Object({ id: IDENTIFIER, replaceAll: Type.Optional(Type.Boolean()), pagePath: Type.Optional(IDENTIFIER) }, { additionalProperties: false }), executionMode: "sequential",
       async execute(_id, input, signal, _update, ctx) {
         exact(input.id, "Component instance ID");
-        const source = `const value = await framer.agent.makeExternalComponentLocal(${JSON.stringify(input)}); console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify(value));`;
+        const options = input.pagePath ? `, { pagePath: ${JSON.stringify(input.pagePath)} }` : "";
+        const operationInput = { id: input.id, ...(input.replaceAll !== undefined ? { replaceAll: input.replaceAll } : {}) };
+        const source = `const before = await framer.agent.getNode({ id: ${JSON.stringify(input.id)} }${options}); const previousComponentId = before?.type === "ComponentInstanceNode" && typeof before.component === "string" ? before.component : undefined; const value = await framer.agent.makeExternalComponentLocal(${JSON.stringify(operationInput)}${options}); let readback = null; let remainingExternalInstances = null; if (value?.status === "success" && typeof value.component?.id === "string") { const node = await framer.agent.getNode({ id: ${JSON.stringify(input.id)} }${options}); readback = node ? { id: node.id, type: node.type, component: node.component } : { status: "missing" }; ${input.replaceAll === true ? "if (previousComponentId) { const instances = await framer.agent.getNodesOfTypes({ types: [\"ComponentInstanceNode\"] }" + options + "); const remaining = Array.isArray(instances) ? instances.filter(item => item?.component === previousComponentId) : []; remainingExternalInstances = { count: remaining.length, sampleIds: remaining.slice(0, 20).map(item => item.id) }; }" : ""} } const targetVerified = value?.status === "success" && readback?.type === "ComponentInstanceNode" && readback?.component === value.component.id; const verified = targetVerified && ${input.replaceAll === true ? "!!previousComponentId && remainingExternalInstances?.count === 0" : "true"}; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ ...value, previousComponentId, verificationStatus: value?.status !== "success" ? "not_performed" : verified ? "verified" : "pending", readback, remainingExternalInstances }));`;
         const { execution, value } = await run(adapter, source, signal, ctx?.cwd ?? process.cwd());
         const record = value as Record<string, unknown>;
         if (record?.status === "needs_confirmation" && input.replaceAll !== undefined) throw new Error("Framer still requires one-versus-all confirmation");
-        const version = record?.status === "success" ? mutationPending(state, "verify the localized component instance with framer_verify_mutation") : undefined;
-        return result("make-component-local", value, { ...execution.details, ...(version ? { mutationVersion: version } : {}) });
+        const version = record?.status === "success" ? recordTypedMutation(state, {
+          verified: record.verificationStatus === "verified",
+          ...(typeof (record.component as Record<string, unknown> | undefined)?.id === "string" ? { descriptor: {
+            kind: "make-component-local" as const,
+            id: input.id,
+            componentId: (record.component as Record<string, unknown>).id as string,
+            ...(typeof record.previousComponentId === "string" ? { previousComponentId: record.previousComponentId } : {}),
+            replaceAll: input.replaceAll === true,
+            ...(input.pagePath ? { pagePath: input.pagePath } : {}),
+          } } : {}),
+          pendingAction: input.replaceAll === true
+            ? "retry typed replace-all localization readback across accessible component instances"
+            : "retry the typed localized-component readback after resolving the missing or mismatched instance",
+        }) : undefined;
+        return result("make-component-local", value, { ...execution.details, verificationStatus: record.verificationStatus, ...(version ? { mutationVersion: version } : {}) });
+      },
+    });
+
+    pi.registerTool({
+      name: "framer_verify_typed_operation", label: "Verify Typed Framer Operation",
+      description: "Retry bounded readback for a pending typed operation without authoring JavaScript or repeating the mutation.",
+      parameters: Type.Object({
+        mutationVersion: Type.Integer({ minimum: 1 }),
+        expectedText: Type.Optional(Type.String({ maxLength: 20_000, description: "Exact complete text expected after an ambiguous text replacement." })),
+      }, { additionalProperties: false }),
+      executionMode: "sequential",
+      async execute(_id, input, signal, _update, ctx) {
+        const pending = state.typedVerification;
+        if (!pending || pending.mutationVersion !== input.mutationVersion) throw new Error("Typed verification is stale or no typed operation is pending.");
+        const options = pending.pagePath ? `, { pagePath: ${JSON.stringify(pending.pagePath)} }` : "";
+        let source: string;
+        if (pending.kind === "replace-text") {
+          if (input.expectedText === undefined) throw new Error("Pending text replacement needs expectedText for an exact typed readback; do not repeat the mutation.");
+          source = `${boundedTextReader(options)} const readback = await readBoundedText(${JSON.stringify(pending.id)}); const verified = readback.status === "read" && !readback.truncated && readback.text === ${JSON.stringify(input.expectedText)}; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: verified ? "verified" : "pending", readback }));`;
+        } else if (pending.kind === "flatten-component") {
+          source = `const node = await framer.agent.getNode({ id: ${JSON.stringify(pending.replacementId)} }${options}); const verified = !!node && node.type !== "ComponentInstanceNode"; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: verified ? "verified" : "pending", readback: node ? { id: node.id, type: node.type, name: node.name } : { status: "missing" } }));`;
+        } else {
+          if (pending.replaceAll && !pending.previousComponentId) throw new Error("Typed replace-all verification lacks the original component reference; completion remains pending.");
+          source = `const node = await framer.agent.getNode({ id: ${JSON.stringify(pending.id)} }${options}); ${pending.replaceAll ? `const instances = await framer.agent.getNodesOfTypes({ types: ["ComponentInstanceNode"] }${options}); const remaining = Array.isArray(instances) ? instances.filter(item => item?.component === ${JSON.stringify(pending.previousComponentId)}) : [];` : ""} const targetVerified = node?.type === "ComponentInstanceNode" && node?.component === ${JSON.stringify(pending.componentId)}; const verified = targetVerified && ${pending.replaceAll ? "remaining.length === 0" : "true"}; console.log(${JSON.stringify(FRAMER_RESULT_PREFIX)} + JSON.stringify({ status: verified ? "verified" : "pending", readback: node ? { id: node.id, type: node.type, component: node.component } : { status: "missing" }, ${pending.replaceAll ? "remainingExternalInstances: { count: remaining.length, sampleIds: remaining.slice(0, 20).map(item => item.id) }" : "remainingExternalInstances: null"} }));`;
+        }
+        const { execution, value } = await run(adapter, source, signal, ctx?.cwd ?? process.cwd());
+        if ((value as Record<string, unknown>)?.status !== "verified") throw new Error("Typed readback did not prove the expected state; completion remains pending.");
+        delete state.typedVerification;
+        delete state.typedVerificationAction;
+        state.genericEvidenceVersion = Math.max(state.genericEvidenceVersion, input.mutationVersion);
+        if (input.mutationVersion === state.genericMutationVersion) delete state.genericVerificationAction;
+        return result("verify-typed-operation", value, { ...execution.details, mutationVersion: input.mutationVersion, verificationStatus: "verified" });
       },
     });
   };

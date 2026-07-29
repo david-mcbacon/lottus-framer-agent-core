@@ -46,17 +46,76 @@ describe("routine Framer operations", () => {
     await expect(requireCapturedTool(h.tools, "framer_query_analytics").execute("star", { query: "SELECT * FROM events", from: "2026-07-01" } as never)).rejects.toThrow("SELECT *");
   });
 
-  it("records typed mutation evidence only on structured success", async () => {
-    const h = harness(); h.adapter.output = { status: "success", replaced: true };
+  it("self-verifies exact text replacement and leaves ambiguous readback pending", async () => {
+    const h = harness(); h.adapter.output = {
+      status: "success", replaced: true, verificationStatus: "verified",
+      before: { status: "read", text: "Old", textRunCount: 1, truncated: false },
+      after: { status: "read", text: "New", textRunCount: 1, truncated: false }, occurrences: 1,
+    };
     const replaced = await requireCapturedTool(h.tools, "framer_replace_text").execute("replace", { id: "text-1", searchText: "Old", replaceText: "New" } as never) as any;
-    expect(replaced.details.mutationVersion).toBe(1);
-    expect(h.state.genericVerificationAction).toContain("text replacement");
+    expect(replaced.details).toMatchObject({ mutationVersion: 1, verificationStatus: "verified" });
+    expect(h.adapter.source).toContain("framer.agent.getNode({ id }");
+    expect(h.state).toMatchObject({ genericMutationVersion: 1, genericEvidenceVersion: 1 });
+    expect(h.state.genericVerificationAction).toBeUndefined();
+
+    h.adapter.output = { status: "success", replaced: true, verificationStatus: "pending", before: { status: "read", text: "Old Old" }, after: { status: "missing" }, occurrences: 2 };
+    const ambiguous = await requireCapturedTool(h.tools, "framer_replace_text").execute("ambiguous", { id: "text-1", searchText: "Old", replaceText: "New" } as never) as any;
+    expect(ambiguous.details).toMatchObject({ mutationVersion: 2, verificationStatus: "pending" });
+    expect(h.state).toMatchObject({ genericMutationVersion: 2, genericEvidenceVersion: 1 });
+    expect(h.state.typedVerificationAction).toContain("typed text readback");
+    expect(h.state.typedVerification).toMatchObject({ kind: "replace-text", mutationVersion: 2, id: "text-1" });
+    await expect(requireCapturedTool(h.tools, "framer_verify_mutation").execute("wrong-verifier", {
+      mutationVersion: 2, assertion: "true", expected: "text changed",
+    } as never)).rejects.toThrow("framer_verify_typed_operation");
+    h.adapter.output = { status: "verified", readback: { status: "read", text: "New New", truncated: false } };
+    await requireCapturedTool(h.tools, "framer_verify_typed_operation").execute("typed-verify", {
+      mutationVersion: 2, expectedText: "New New",
+    } as never);
+    expect(h.state).toMatchObject({ genericMutationVersion: 2, genericEvidenceVersion: 2 });
+    expect(h.state.typedVerification).toBeUndefined();
+  });
+
+  it("proves a unique partial replacement across rich-text runs without assuming multi-match semantics", async () => {
+    const h = harness(); h.adapter.output = {
+      status: "success", replaced: true, verificationStatus: "verified",
+      before: { status: "read", text: "Ship Old copy", textRunCount: 3, truncated: false },
+      after: { status: "read", text: "Ship New copy", textRunCount: 3, truncated: false }, occurrences: 1,
+    };
+    await requireCapturedTool(h.tools, "framer_replace_text").execute("replace", {
+      id: "rich-text", searchText: "Old", replaceText: "New",
+    } as never);
+    expect(h.adapter.source).toContain("parts.join");
+    expect(h.adapter.source).toContain("occurrences === 1");
+    expect(h.state).toMatchObject({ genericMutationVersion: 1, genericEvidenceVersion: 1 });
+  });
+
+  it("records component mutation evidence only on structured success", async () => {
+    const h = harness();
     h.adapter.output = { status: "blocked", message: "external" };
     await requireCapturedTool(h.tools, "framer_flatten_component").execute("flatten", { id: "instance-1" } as never);
-    expect(h.state.genericMutationVersion).toBe(1);
-    h.adapter.output = { status: "success", component: { id: "local" } };
+    expect(h.state.genericMutationVersion).toBe(0);
+    h.adapter.output = { status: "success", component: { id: "local" }, verificationStatus: "verified", readback: { id: "instance-2", type: "ComponentInstanceNode", component: "local" } };
     await requireCapturedTool(h.tools, "framer_make_component_local").execute("local", { id: "instance-2", replaceAll: false } as never);
-    expect(h.state.genericMutationVersion).toBe(2);
+    expect(h.state).toMatchObject({ genericMutationVersion: 1, genericEvidenceVersion: 1 });
+  });
+
+  it("retries replace-all localization with bounded typed project readback", async () => {
+    const h = harness(); h.adapter.output = {
+      status: "success", component: { id: "local" }, previousComponentId: "external",
+      verificationStatus: "pending", readback: { id: "instance-2", type: "ComponentInstanceNode", component: "local" },
+      remainingExternalInstances: { count: 1, sampleIds: ["instance-3"] },
+    };
+    await requireCapturedTool(h.tools, "framer_make_component_local").execute("local-all", {
+      id: "instance-2", replaceAll: true,
+    } as never);
+    expect(h.state.typedVerification).toMatchObject({
+      kind: "make-component-local", mutationVersion: 1, previousComponentId: "external", replaceAll: true,
+    });
+    h.adapter.output = { status: "verified", remainingExternalInstances: { count: 0, sampleIds: [] } };
+    await requireCapturedTool(h.tools, "framer_verify_typed_operation").execute("verify-all", { mutationVersion: 1 } as never);
+    expect(h.adapter.source).toContain("getNodesOfTypes");
+    expect(h.adapter.source).toContain("remaining.length === 0");
+    expect(h.state).toMatchObject({ genericMutationVersion: 1, genericEvidenceVersion: 1 });
   });
 
   it("prohibits dedicated families in generic execution", async () => {

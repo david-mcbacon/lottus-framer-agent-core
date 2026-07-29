@@ -25,6 +25,7 @@ export {
   FRAMER_IMPLEMENTATION_GUIDES,
   FRAMER_RESULT_PREFIX,
   createFramerCanvasExtension,
+  observeFramerSourceEffect,
 } from "./framer-canvas.js";
 export { FRAMER_OPERATION_DETAILS_TYPE, createFramerOperationsExtension } from "./framer-operations.js";
 export type {
@@ -63,10 +64,12 @@ export {
   createFramerRunState,
   derivedReviewStatus,
   incompleteReviewReason,
+  recordGenericMutation,
+  recordTypedMutation,
   recordCodeMutation,
   recordCodeVerification,
 } from "./framer-run-state.js";
-export type { CodeFileRunState, CodeVerificationStatus, FramerRunState } from "./framer-run-state.js";
+export type { CodeFileRunState, CodeVerificationStatus, FramerRunState, TypedVerificationDescriptor } from "./framer-run-state.js";
 export { createFramerVisualExtension } from "./framer-visual.js";
 export type { FramerVisualAdapter, FramerImage, GeometryDiagnostic, GeometryResult, StockImageCandidate } from "./framer-visual.js";
 export { MAX_PATTERN_OBSERVATIONS, MAX_PATTERN_REFERENCE_SCOPES, createFramerPatternExtension, extractObservedPatterns, findObservedPatternDeviations, patternKinds, renderObservedPatternGuidance } from "./framer-patterns.js";

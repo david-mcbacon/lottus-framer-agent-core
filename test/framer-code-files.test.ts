@@ -100,6 +100,7 @@ describe("Framer code-file Core conformance", () => {
       "framer_search_fonts",
       "framer_update_code_file",
       "framer_verify_mutation",
+      "framer_verify_typed_operation",
       "record_design_plan",
     ]);
   });

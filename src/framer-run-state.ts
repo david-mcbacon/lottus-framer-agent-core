@@ -24,9 +24,63 @@ export interface FramerRunState {
   genericMutationVersion: number;
   genericEvidenceVersion: number;
   genericVerificationAction?: string;
+  typedVerification?: TypedVerificationDescriptor;
+  typedVerificationAction?: string;
   published: boolean;
   publicationTarget?: "branch" | "staging" | "production";
   publicationPreviewHash?: string;
+}
+
+export type TypedVerificationDescriptor =
+  | { readonly kind: "replace-text"; readonly mutationVersion: number; readonly id: string; readonly pagePath?: string }
+  | { readonly kind: "flatten-component"; readonly mutationVersion: number; readonly replacementId: string; readonly pagePath?: string }
+  | { readonly kind: "make-component-local"; readonly mutationVersion: number; readonly id: string; readonly componentId: string; readonly previousComponentId?: string; readonly pagePath?: string; readonly replaceAll: boolean };
+
+type TypedVerificationInput =
+  | Omit<Extract<TypedVerificationDescriptor, { kind: "replace-text" }>, "mutationVersion">
+  | Omit<Extract<TypedVerificationDescriptor, { kind: "flatten-component" }>, "mutationVersion">
+  | Omit<Extract<TypedVerificationDescriptor, { kind: "make-component-local" }>, "mutationVersion">;
+
+export function recordGenericMutation(
+  state: FramerRunState,
+  evidence: { readonly verified: boolean; readonly pendingAction?: string },
+): number {
+  state.genericMutationVersion += 1;
+  if (evidence.verified) {
+    state.genericEvidenceVersion = state.genericMutationVersion;
+    delete state.genericVerificationAction;
+  } else {
+    state.genericVerificationAction = evidence.pendingAction
+      ?? "verify or correct the latest generic Framer mutation with a typed Core operation";
+  }
+  return state.genericMutationVersion;
+}
+
+export function recordTypedMutation(
+  state: FramerRunState,
+  evidence: { readonly verified: boolean; readonly descriptor?: TypedVerificationInput; readonly pendingAction?: string },
+): number {
+  state.genericMutationVersion += 1;
+  const version = state.genericMutationVersion;
+  if (evidence.verified) {
+    state.genericEvidenceVersion = version;
+    if (state.typedVerification && evidence.descriptor && sameTypedTarget(state.typedVerification, evidence.descriptor)) {
+      delete state.typedVerification;
+      delete state.typedVerificationAction;
+    }
+    if (!state.typedVerification) delete state.genericVerificationAction;
+  } else if (evidence.descriptor) {
+    state.typedVerification = { ...evidence.descriptor, mutationVersion: version } as TypedVerificationDescriptor;
+    state.typedVerificationAction = evidence.pendingAction ?? "verify the latest typed Framer mutation with framer_verify_typed_operation";
+  }
+  return version;
+}
+
+function sameTypedTarget(left: TypedVerificationDescriptor, right: TypedVerificationInput): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "flatten-component" && right.kind === "flatten-component") return left.replacementId === right.replacementId;
+  if (left.kind === "replace-text" && right.kind === "replace-text") return left.id === right.id;
+  return left.kind === "make-component-local" && right.kind === "make-component-local" && left.id === right.id;
 }
 
 export function createFramerRunState(): FramerRunState {
@@ -76,6 +130,11 @@ export function incompleteReviewReason(state: FramerRunState): string | undefine
     if (state.visualRequirement === "geometry" && state.geometryEvidenceVersion < state.canvasMutationVersion) {
       return "obtain bounded geometry diagnostics for the latest canvas mutation with framer_check_geometry";
     }
+  }
+
+  if (state.typedVerification) {
+    return state.typedVerificationAction
+      ?? `verify typed ${state.typedVerification.kind} evidence with framer_verify_typed_operation`;
   }
 
   if (state.genericMutationVersion > state.genericEvidenceVersion) {

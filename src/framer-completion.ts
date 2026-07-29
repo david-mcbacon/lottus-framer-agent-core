@@ -13,6 +13,26 @@ import {
 
 export function createFramerCompletionExtension(state: FramerRunState): ExtensionFactory {
   return (pi: ExtensionAPI) => {
+    let completedThisRun = false;
+    pi.on("agent_start", () => {
+      completedThisRun = false;
+    });
+    pi.on("agent_end", () => {
+      const incomplete = incompleteReviewReason(state);
+      if (!completedThisRun && incomplete) {
+        pi.sendMessage({
+          customType: "lottus_runtime_status",
+          content: `Framer work incomplete: ${incomplete}.`,
+          display: true,
+          details: {
+            runOutcome: "failed",
+            code: "FRAMER_WORK_INCOMPLETE",
+            message: `Framer work incomplete: ${incomplete}.`,
+            action: incomplete,
+          },
+        }, { triggerTurn: false });
+      }
+    });
     pi.registerTool({
       name: "finish_framer_work",
       label: "Finish Framer Work",
@@ -24,6 +44,9 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
       parameters: finishFramerWorkSchema,
       executionMode: "sequential",
       async execute(_id, input: FinishFramerWorkInput) {
+        const incomplete = incompleteReviewReason(state);
+        if (incomplete) throw new Error(`Completion blocked: ${incomplete}.`);
+
         const reviewStatus = derivedReviewStatus(state);
         if (reviewStatus === "issues_remain" && input.unresolvedIssues.length === 0) {
           throw new Error("Completion with issues remaining must list concise user-facing unresolved issues.");
@@ -31,9 +54,6 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
         if (reviewStatus !== "issues_remain" && input.unresolvedIssues.length > 0) {
           throw new Error("Completion evidence is clean; do not report unresolved issues unless checks found issues.");
         }
-        const incomplete = incompleteReviewReason(state);
-        if (incomplete) throw new Error(`Completion blocked: ${incomplete}.`);
-
         const details: FramerCompletionDetails = {
           type: FRAMER_COMPLETION_DETAILS_TYPE,
           summary: input.summary.trim(),
@@ -43,6 +63,7 @@ export function createFramerCompletionExtension(state: FramerRunState): Extensio
           published: state.published,
           ...(state.publicationTarget ? { publicationTarget: state.publicationTarget } : {}),
         };
+        completedThisRun = true;
         return {
           content: [{ type: "text" as const, text: "Framer work completed and recorded." }],
           details,

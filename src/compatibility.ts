@@ -1,4 +1,4 @@
-export const SUPPORTED_FRAMER_AGENT_VERSIONS = ["0.0.38"] as const;
+export const SUPPORTED_FRAMER_AGENT_VERSIONS = ["0.0.40"] as const;
 export const REQUIRED_FRAMER_PUBLIC_METHODS = [
   "framer.agent.applyChanges",
   "framer.agent.flattenComponentInstance",
